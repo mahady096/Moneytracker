@@ -9,7 +9,7 @@ const CATS=["Food","Transport","Bills","Shopping","Health","Salary","Other"],bad
 let uid,cur="BDT",accs=[],recs=[],subs=[];
 const show=id=>["auth","onboard","app"].forEach(s=>$("#"+s).hidden=s!==id);
 const uref=(...p)=>doc(db,"users",uid,...p),ucol=n=>collection(db,"users",uid,n);
-const cred=()=>[auth,$("#email").value,$("#pass").value],err=e=>$("#err").textContent=e.message;
+const cred=()=>[auth,$("#email").value.trim(),$("#pass").value],err=e=>$("#err").textContent=e.message;
 $("#login").onclick=()=>si(...cred()).catch(err);
 $("#signup").onclick=()=>su(...cred()).catch(err);
 $("#google").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(err);
