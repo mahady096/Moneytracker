@@ -17,3 +17,4 @@ main{padding-bottom:84px}h4{margin:18px 0 0;display:flex;justify-content:space-b
 #nav button{background:none;color:var(--mut);border:0;border-radius:0;margin:0;font-size:.8rem;padding:14px 2px}#nav .on{color:var(--ac);box-shadow:inset 0 2px var(--ac)}
 .bar{height:6px;background:var(--bd);border-radius:3px;margin-top:4px}.bar i{display:block;height:100%;background:var(--ac);border-radius:3px}.bar i.over{background:var(--bad)}
 .grid button,.row button{width:auto}#save,#addSch,#addAcc{grid-column:1/-1;width:100%}.row{grid-template-columns:2fr 1fr auto}
+.grid .alt{grid-column:1/-1;width:100%}li[data-a],li[data-e]{cursor:pointer}#nav button{font-size:.72rem}.tot{font-weight:700}
