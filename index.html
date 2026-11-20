@@ -1,12 +1,18 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My Wallet</title><link rel="stylesheet" href="style.css"></head><body><main>
 <section id="auth" hidden><h1>My Wallet</h1><input id="email" type="email" placeholder="Email"><input id="pass" type="password" placeholder="Password (min 6 characters)"><button id="login">Sign in</button><button id="signup" class="alt">Create account</button><button id="google" class="alt">Continue with Google</button><p id="err" class="err"></p></section>
-<section id="onboard" hidden><h2>Set up your wallet</h2><input id="cur" placeholder="Currency code, e.g. BDT" value="BDT"><input id="accName" placeholder="First account name" value="Cash"><input id="accBal" type="number" step="0.01" placeholder="Starting balance" value="0"><button id="start">Start tracking</button></section>
+<section id="onboard" hidden><h2>Choose your currency</h2><input id="cur" placeholder="Currency code, e.g. BDT" value="BDT"><button id="start">Continue</button></section>
 <section id="app" hidden>
 <header><h2>My Wallet</h2><button id="out" class="alt">Sign out</button></header>
-<div class="cards"><div><small>Total balance</small><b id="tot"></b></div><div><small>Income this month</small><b id="inc"></b></div><div><small>Spent this month</small><b id="exp"></b></div></div>
-<h3>Accounts</h3><ul id="accs"></ul>
-<div class="row"><input id="nAcc" placeholder="New account name"><input id="nBal" type="number" step="0.01" placeholder="Balance"><button id="addAcc">Add account</button></div>
-<h3>Add record</h3>
-<div class="grid"><select id="type"><option>expense</option><option>income</option><option>transfer</option></select><input id="amt" type="number" step="0.01" placeholder="Amount"><select id="from"></select><select id="to"></select><select id="cat"></select><input id="date" type="date"><input id="note" placeholder="Note (optional)"><button id="save">Save record</button></div>
-<h3>Records</h3><ul id="recs"></ul>
+<div class="tab" id="t-home"><div class="hero"><small>Net worth</small><b id="net"></b></div>
+<div class="cards"><div><small>Assets</small><b id="ast"></b></div><div><small>Debts</small><b id="dbt" class="expense"></b></div><div><small>Income, this month</small><b id="inc" class="income"></b></div><div><small>Spent, this month</small><b id="exp" class="expense"></b></div></div>
+<h3>Spending by category</h3><ul id="cats"></ul></div>
+<div class="tab" id="t-acc" hidden><h3>Add institution</h3><div class="row"><input id="iname" placeholder="Name, e.g. City Bank"><select id="ikind"></select><button id="addInst">Add</button></div>
+<h3>Add account</h3><div class="grid"><select id="ainst"></select><select id="atype"></select><input id="aname" placeholder="Account name"><input id="abal" type="number" step="0.01" placeholder="Balance (amount owed for loans and cards)"><button id="addAcc">Add account</button></div>
+<div id="insts"></div></div>
+<div class="tab" id="t-rec" hidden><h3>Add record</h3><div class="grid"><select id="type"><option>expense</option><option>income</option><option>transfer</option></select><input id="amt" type="number" step="0.01" placeholder="Amount"><select id="from"></select><select id="to"></select><select id="cat"></select><input id="date" type="date"><input id="note" placeholder="Note (optional)"><button id="save">Save record</button></div>
+<h3>Records</h3><ul id="recs"></ul></div>
+<div class="tab" id="t-sch" hidden><h3>Schedule a payment</h3><p class="hint">Runs automatically when you open the app on or after the due date. Leave "To" empty to record an expense.</p><div class="grid"><input id="sname" placeholder="Name, e.g. DPS installment"><input id="samt" type="number" step="0.01" placeholder="Amount"><select id="sfrom"></select><select id="sto"></select><select id="scat"></select><select id="sfreq"><option>monthly</option><option>weekly</option><option>yearly</option></select><input id="sdate" type="date"><button id="addSch">Add schedule</button></div>
+<h3>Schedules</h3><ul id="schs"></ul></div>
+<div class="tab" id="t-bud" hidden><h3>Set a monthly budget</h3><div class="row"><select id="bcat"></select><input id="blim" type="number" step="0.01" placeholder="Limit"><button id="addBud">Save</button></div><ul id="buds"></ul></div>
+<nav id="nav"><button data-t="home">Home</button><button data-t="acc">Accounts</button><button data-t="rec">Records</button><button data-t="sch">Schedule</button><button data-t="bud">Budgets</button></nav>
 </section></main><script type="module" src="app.js"></script></body></html>
