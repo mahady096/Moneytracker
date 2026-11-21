@@ -1,6 +1,6 @@
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import{getAuth,onAuthStateChanged,signInWithEmailAndPassword as si,createUserWithEmailAndPassword as su,GoogleAuthProvider,signInWithPopup,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import{initializeFirestore,persistentLocalCache,doc,getDoc,setDoc,addDoc,getDocs,updateDoc,deleteDoc,collection,query,orderBy,limit,onSnapshot,runTransaction,serverTimestamp,Timestamp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import{initializeFirestore,persistentLocalCache,doc,getDoc,setDoc,addDoc,getDocs,updateDoc,deleteDoc,collection,query,orderBy,limit,onSnapshot,runTransaction,serverTimestamp,Timestamp,writeBatch}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import{firebaseConfig}from"./firebase-config.js";
 const app=initializeApp(firebaseConfig),auth=getAuth(app),db=initializeFirestore(app,{localCache:persistentLocalCache()});
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -16,7 +16,7 @@ $("#google").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(er
 onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;if(!u)return show("auth");uid=u.uid;const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency;run();});
 $("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT";await setDoc(uref(),{currency:cur,onboarded:true});run();tab("acc");}catch(e){bad(e)}};
 const sub=(n,q)=>subs.push(onSnapshot(q||ucol(n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));L[n]=1;draw();}));
-function run(){show("app");$("#date").valueAsDate=$("#sdate").valueAsDate=new Date();["institutions","accounts","scheduled","budgets"].forEach(n=>sub(n));sub("records",query(ucol("records"),orderBy("date","desc"),limit(1000)));}
+function run(){show("app");$("#date").valueAsDate=$("#sdate").valueAsDate=new Date();["institutions","accounts","scheduled","budgets"].forEach(n=>sub(n));sub("records",query(ucol("records"),orderBy("date","desc")));}
 const tab=t=>{document.querySelectorAll(".tab").forEach(e=>e.hidden=e.id!=="t-"+t);document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));};
 $("#nav").onclick=e=>e.target.dataset.t&&tab(e.target.dataset.t);tab("home");
 const o=(l,f=x=>x)=>l.map(x=>`<option>${esc(f(x))}</option>`).join(""),bar=(p,x)=>`<div class="bar"><i class="${x?"over":""}" style="width:${Math.min(100,p||0)}%"></i></div>`;
@@ -44,10 +44,38 @@ const eff=r=>r.type==="income"?r.amount:-r.amount;
 async function apply(r,sign,fn){await runTransaction(db,async t=>{
 const s=await Promise.all([r.accountId,...(r.type==="transfer"?[r.toAccountId]:[])].map(i=>t.get(uref("accounts",i))));
 t.update(s[0].ref,{balance:s[0].data().balance+sign*eff(r)});if(s[1])t.update(s[1].ref,{balance:s[1].data().balance-sign*eff(r)});fn(t);});}
-const adv=(d,f)=>{const x=new Date(d);f==="weekly"?x.setUTCDate(x.getUTCDate()+7):f==="quarterly"?x.setUTCMonth(x.getUTCMonth()+3):f==="yearly"?x.setUTCFullYear(x.getUTCFullYear()+1):x.setUTCMonth(x.getUTCMonth()+1);return x.toISOString().slice(0,10)};
-async function runDue(){const today=new Date().toISOString().slice(0,10);
-for(const s of D.scheduled){let n=s.next,dn=s.done||0,k=0;while(n<=today&&k++<12&&!(s.total>0&&dn>=s.total)){const r={type:!s.fromId?"income":s.toId?"transfer":"expense",amount:s.amount,accountId:s.fromId||s.toId,category:s.fromId&&s.toId?"":s.cat,note:"Scheduled: "+s.name+(s.total>0?" ("+(dn+1)+"/"+s.total+")":""),date:Timestamp.fromDate(new Date(n))};if(s.toId&&s.fromId)r.toAccountId=s.toId;n=adv(n,s.freq);dn++;const nx=n,nd=dn;
-try{await apply(r,1,t=>{t.set(doc(ucol("records")),{...r,createdAt:serverTimestamp()});t.update(uref("scheduled",s.id),{next:nx,done:nd});});}catch(e){bad(e);break}}}}
+const adv=(d,f)=>{const [yy,mm,dd]=d.split("-").map(Number);if(f==="weekly"){const x=new Date(Date.UTC(yy,mm-1,dd+7));return x.toISOString().slice(0,10);}const addMonths=f==="quarterly"?3:f==="yearly"?12:1;const first=new Date(Date.UTC(yy,mm-1+addMonths,1));const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();return new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth(),Math.min(dd,last))).toISOString().slice(0,10)};
+async function runDue(){
+const today=new Date().toISOString().slice(0,10);
+for(const s of D.scheduled){
+ let n=s.next,k=0;
+ while(n<=today&&k++<12){
+  const recordId="schedule_"+s.id+"_"+n, recordRef=doc(ucol("records"),recordId), scheduleRef=uref("scheduled",s.id);
+  try{
+   const advanced=await runTransaction(db,async t=>{
+    const sr=await t.get(scheduleRef);
+    if(!sr.exists())return false;
+    const live=sr.data();
+    if(live.next!==n || (live.total>0&&(live.done||0)>=live.total))return false;
+    const rr=await t.get(recordRef);
+    if(rr.exists())return false;
+    const type=!live.fromId?"income":live.toId?"transfer":"expense";
+    const accountIds=[live.fromId||live.toId,...(type==="transfer"?[live.toId]:[])],snaps=[];
+    for(const id of accountIds)snaps.push(await t.get(uref("accounts",id)));
+    if(snaps.some(x=>!x.exists()))throw new Error("A scheduled payment account no longer exists.");
+    const amount=live.amount,sign=type==="income"?1:-1;
+    const rec={type,amount,accountId:live.fromId||live.toId,category:type==="transfer"?"":live.cat,note:"Scheduled: "+live.name+(live.total>0?" ("+((live.done||0)+1)+"/"+live.total+")":""),date:Timestamp.fromDate(new Date(n+"T00:00:00Z")),createdAt:serverTimestamp()};
+    if(type==="transfer")rec.toAccountId=live.toId;
+    t.update(snaps[0].ref,{balance:snaps[0].data().balance+sign*amount});
+    if(snaps[1])t.update(snaps[1].ref,{balance:snaps[1].data().balance-sign*amount});
+    const next=adv(n,live.freq),done=(live.done||0)+1;
+    t.set(recordRef,rec);t.update(scheduleRef,{next,done});return next;
+   });
+   if(!advanced)break;n=advanced;
+  }catch(e){bad(e);break;}
+ }
+}
+}
 const left=s=>s.total>0?Math.max(0,s.total-(s.done||0)):null;
 function endOf(s){const r=left(s);if(!r)return"";let e=s.next;for(let i=1;i<r;i++)e=adv(e,s.freq);return e}
 function sline(s){const r=left(s);if(r===0)return"completed, "+s.total+"/"+s.total+" paid";const e=endOf(s),t=new Date().toISOString().slice(0,10);return (s.done||0)+(s.total>0?"/"+s.total:"")+" paid, next "+s.next+(e?", "+r+" left, ends "+e+" ("+Math.ceil((new Date(e)-new Date(t))/864e5)+" days)":"")}
@@ -78,7 +106,23 @@ $("#rdl").onclick=()=>dl(new Blob([`<!doctype html><meta charset=utf-8><title>Mo
 $("#rpr").onclick=()=>print();
 $("#bak").onclick=async()=>{try{const j={app:"mywallet",currency:cur};for(const n of NAMES)j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...Object.fromEntries(Object.entries(d.data()).map(([k,v])=>[k,v&&v.toDate?{__t:v.toDate().toISOString()}:v]))}));dl(new Blob([JSON.stringify(j)],{type:"application/json"}),"wallet-backup-"+new Date().toISOString().slice(0,10)+".json")}catch(e){bad(e)}};
 $("#rbtn").onclick=()=>$("#restore").click();
-$("#restore").onchange=async e=>{const f=e.target.files[0];if(!f||!confirm("Restore this backup? Items with the same id will be overwritten."))return;try{const j=JSON.parse(await f.text());for(const n of NAMES)for(const x of j[n]||[]){const{id,...d}=x;await setDoc(uref(n,id),Object.fromEntries(Object.entries(d).map(([k,v])=>[k,v&&v.__t?Timestamp.fromDate(new Date(v.__t)):v])))}alert("Restore complete.")}catch(er){bad(er)}e.target.value=""};$("#scancel").onclick=endSch;
+$("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
+const j=JSON.parse(await f.text()),allowed=["institutions","accounts","scheduled","budgets","records"];
+if(!j||j.app!=="mywallet"||!allowed.every(n=>Array.isArray(j[n])))throw new Error("This is not a valid My Wallet backup.");
+const ids=new Set();
+for(const n of allowed)for(const x of j[n]){
+ if(!x||typeof x!=="object"||typeof x.id!=="string"||!x.id.trim())throw new Error("Backup contains an invalid item.");
+ const key=n+"/"+x.id;if(ids.has(key))throw new Error("Backup contains duplicate IDs.");ids.add(key);
+ if(n==="records"&&(!Number.isSafeInteger(x.amount)||x.amount<=0||!["income","expense","transfer"].includes(x.type)))throw new Error("Backup contains an invalid transaction.");
+ if(n==="accounts"&&!Number.isSafeInteger(x.balance))throw new Error("Backup contains an invalid account balance.");
+ if(n==="scheduled"&&(!Number.isSafeInteger(x.amount)||x.amount<=0||typeof x.next!=="string"||!/^\\d{4}-\\d{2}-\\d{2}$/.test(x.next)))throw new Error("Backup contains an invalid schedule.");
+ if(n==="budgets"&&(!Number.isSafeInteger(x.limit)||x.limit<=0))throw new Error("Backup contains an invalid budget.");
+}
+if(!confirm("Restore this validated backup? Items with matching IDs will be overwritten."))return;
+const jobs=[];for(const n of allowed)for(const x of j[n]){const{id,...raw}=x;const d=Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,v&&v.__t?Timestamp.fromDate(new Date(v.__t)):v]));jobs.push({ref:uref(n,id),data:d});}
+for(let i=0;i<jobs.length;i+=450){const batch=writeBatch(db);for(const job of jobs.slice(i,i+450))batch.set(job.ref,job.data);await batch.commit();}
+alert("Restore complete.");
+}catch(er){bad(er)}finally{e.target.value=""}};$("#scancel").onclick=endSch;
 $("#adel").onclick=()=>{if(D.scheduled.some(s=>s.fromId===ea||s.toId===ea))return alert("This account is used in a schedule. Delete or change the schedule first.");if(confirm("Delete this account? Old records that used it will show as unknown."))deleteDoc(uref("accounts",ea)).then(endAcc).catch(bad)};
 $("#type").onchange=()=>{const t=$("#type").value==="transfer";$("#to").hidden=!t;$("#cat").hidden=t;};$("#type").onchange();
 $("#save").onclick=()=>{const type=$("#type").value,amount=cents($("#amt").value);
