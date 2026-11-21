@@ -1,20 +1,46 @@
-# My Wallet — Improved build
+# My Wallet — release candidate
 
-## Changes in this build
-- Scheduled payments now use a deterministic record ID and a Firestore transaction. This prevents two devices from applying the same due installment twice.
-- Monthly/quarterly/yearly schedule advancement clamps dates to the last valid day of the target month (for example, Jan 31 → Feb 28/29).
-- Restore validates the backup structure and key amounts before writing, then commits in Firestore batches.
-- Removed the hard 1,000-record query cap so reports and the transaction list do not silently omit older records.
-- Firestore rules now validate basic types and positive amounts for records, budgets, and scheduled payments.
+This package preserves the existing My Wallet features and improves its mobile presentation and several reliability safeguards.
 
-## Required Firebase setup before deployment
-1. Open `firebase-config.js` and verify every value against Firebase Console → Project settings → Your apps.
-2. **Important:** this archive has `projectId: "moneytrack-c5787"` but `authDomain: "oneytrack-c5787.firebaseapp.com"`. Verify the authDomain in Firebase Console and correct it if it is a typo. I have intentionally not guessed the correct project setting.
-3. In Firebase Authentication, enable Email/Password and Google sign-in if you want those buttons to work. Add your deployed domain to Authorized domains.
-4. Deploy the included Firestore rules: `firebase deploy --only firestore:rules`.
-5. Deploy hosting from this folder with `firebase deploy --only hosting`.
+## Included improvements
 
-## Notes
-- The Firebase web config (including the API key) is client-side configuration, not a server secret. Protect data with Firestore Security Rules and Firebase Console restrictions.
-- Test with a disposable Firebase account and sample data before using real financial records.
-- The app still uses browser-local date/time and the existing UI. Live Firebase deployment, authentication, security-rule emulator tests, and multi-device testing have not been run here.
+- Refreshed responsive layout, improved contrast, touch targets, navigation, cards and account tiles.
+- Added page description and mobile theme metadata.
+- Uses the device's local calendar date for the dashboard month, default date fields, schedules and transaction dates (important for Bangladesh UTC+6).
+- Validates money inputs as safe integer minor units before writing balances.
+- Transaction updates now fail with a clear message if an account no longer exists or a balance would exceed the safe integer range.
+- Account deletion is blocked when transaction history exists, preserving historical financial data.
+- Backup restore validates document IDs and values, restores the selected currency, and clearly explains that records absent from the backup are not deleted.
+- Keeps the Firebase configuration unchanged because the correct Auth domain must be copied from the project's Firebase Console, not guessed.
+
+## Mandatory Firebase checks before publishing
+
+1. Open `firebase-config.js` and compare **all four values** with Firebase Console → Project settings → Your apps → Web app configuration.
+2. The current file has `projectId: "moneytrack-c5787"` and `authDomain: "oneytrack-c5787.firebaseapp.com"`. These do not match. Confirm the exact Auth domain in Firebase Console and correct it if required. Do not deploy until this is verified.
+3. In Firebase Authentication, enable Email/Password and Google sign-in if those options are offered in the app. Add the deployed hostname to Authentication → Settings → Authorized domains.
+4. Deploy `firestore.rules` to the same Firebase project used by `firebase-config.js`.
+5. Test with a disposable account before importing real financial data. Verify sign-up, sign-in, sign-out, add/edit/delete account, income, expense, transfer, scheduled payments, budgets, CSV, backup and restore.
+6. Test two different accounts to confirm one user's data cannot be read by another user. Test on a second device/browser to confirm sync.
+
+## Firestore rules deployment
+
+From this folder, after installing and signing in to Firebase CLI and selecting the correct project:
+
+```sh
+firebase use moneytrack-c5787
+firebase deploy --only firestore:rules
+```
+
+If the actual project ID shown in Firebase Console is different, use that exact ID instead.
+
+## Hosting
+
+`firebase.json` is configured for Firebase Hosting with this folder as the public directory. If the live site is deployed using Cloudflare Workers or another host, upload the contents of this folder using that host's deployment workflow instead. Do not assume the Firebase Hosting command updates the current live URL.
+
+## Known release limitations
+
+- This is a release candidate, not a certified production release: Firebase credentials/domain, Authentication providers, deployed rules, real Firestore behavior and multi-device synchronization cannot be verified from this source archive alone.
+- The interface remains English in this build; Bengali/English language switching has not been implemented.
+- Currency is a per-wallet display code. This app does not perform foreign-exchange conversion.
+- Scheduled items run when the user opens the app on or after the due date; they are not a server-side notification or background scheduler.
+- Backups contain personal financial data. Store exported JSON files securely and never share them publicly.

@@ -4,7 +4,8 @@ import{initializeFirestore,persistentLocalCache,doc,getDoc,setDoc,addDoc,getDocs
 import{firebaseConfig}from"./firebase-config.js";
 const app=initializeApp(firebaseConfig),auth=getAuth(app),db=initializeFirestore(app,{localCache:persistentLocalCache()});
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const fmt=n=>(n/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}),cents=v=>Math.round(parseFloat(v||0)*100)||0;
+const fmt=n=>(n/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}),cents=v=>{const n=Number.parseFloat(v||0);if(!Number.isFinite(n))return 0;const c=Math.round(n*100);return Number.isSafeInteger(c)?c:0};
+const localDate=(d=new Date())=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`},monthKey=(d=new Date())=>localDate(d).slice(0,7);
 const KINDS=["Bank","Mobile banking","Stock market","Insurance","Cash","Other"],TYPES=["Savings","Current","DPS (recurring deposit)","Fixed deposit","Mobile wallet (MFS)","Investment","Insurance","Loan","Credit card","Cash"],DEBT=["Loan","Credit card"];
 const CATS=["Food","Transport","Bills","Rent","Shopping","Health","Education","Entertainment","Savings","Salary","Other"],bad=e=>alert(e.message||e);
 let ea=null,es=null,uid,cur="BDT",D={institutions:[],accounts:[],records:[],scheduled:[],budgets:[]},L={},subs=[],due=0;
@@ -13,24 +14,24 @@ const uref=(...p)=>doc(db,"users",uid,...p),ucol=n=>collection(db,"users",uid,n)
 const cred=()=>[auth,$("#email").value.trim(),$("#pass").value],err=e=>$("#err").textContent=e.message;
 $("#login").onclick=()=>si(...cred()).catch(err);$("#signup").onclick=()=>su(...cred()).catch(err);
 $("#google").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(err);$("#out").onclick=()=>signOut(auth);
-onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;if(!u)return show("auth");uid=u.uid;const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency;run();});
+onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;if(!u)return show("auth");uid=u.uid;try{const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();}catch(e){show("auth");err(e)}});
 $("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT";await setDoc(uref(),{currency:cur,onboarded:true});run();tab("acc");}catch(e){bad(e)}};
 const sub=(n,q)=>subs.push(onSnapshot(q||ucol(n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));L[n]=1;draw();}));
-function run(){show("app");$("#date").valueAsDate=$("#sdate").valueAsDate=new Date();["institutions","accounts","scheduled","budgets"].forEach(n=>sub(n));sub("records",query(ucol("records"),orderBy("date","desc")));}
+function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets"].forEach(n=>sub(n));sub("records",query(ucol("records"),orderBy("date","desc")));}
 const tab=t=>{document.querySelectorAll(".tab").forEach(e=>e.hidden=e.id!=="t-"+t);document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));};
 $("#nav").onclick=e=>e.target.dataset.t&&tab(e.target.dataset.t);tab("home");
 const o=(l,f=x=>x)=>l.map(x=>`<option>${esc(f(x))}</option>`).join(""),bar=(p,x)=>`<div class="bar"><i class="${x?"over":""}" style="width:${Math.min(100,p||0)}%"></i></div>`;
 for(const id of["ikind"])$("#"+id).innerHTML=o(KINDS);$("#atype").innerHTML=o(TYPES);for(const id of["cat","scat","bcat"])$("#"+id).innerHTML=o(CATS);
 $("#bcat").innerHTML=o(["Total",...CATS]);
 const nameOf=id=>{const a=D.accounts.find(x=>x.id===id);if(!a)return"?";const i=D.institutions.find(x=>x.id===a.instId);return(i?i.name+" / ":"")+a.name};
-const day=r=>r.date.toDate().toISOString().slice(0,10);
+const day=r=>localDate(r.date.toDate());
 function draw(){
 if(!due&&L.accounts&&L.scheduled){due=1;runDue();}
 const ao=D.accounts.map(a=>`<option value="${a.id}">${esc(nameOf(a.id))}</option>`).join("");
 for(const id of["from","to","sfrom","sto"]){const e=$("#"+id),v=e.value;e.innerHTML=(id==="sto"?'<option value="">To: none (expense)</option>':id==="sfrom"?'<option value="">From: none (income)</option>':"")+ao;if(v)e.value=v;}
 const fv=$("#rfil").value;$("#rfil").innerHTML='<option value="">All accounts</option>'+ao;$("#rfil").value=fv;
 const iv=$("#ainst").value;$("#ainst").innerHTML=D.institutions.map(i=>`<option value="${i.id}">${esc(i.name)}</option>`).join("");if(iv)$("#ainst").value=iv;
-const m=new Date().toISOString().slice(0,7),sp={};let inc=0,exp=0,ast=0,dbt=0;
+const m=monthKey(),sp={};let inc=0,exp=0,ast=0,dbt=0;
 D.accounts.forEach(a=>a.balance>0?ast+=a.balance:dbt+=a.balance);
 D.records.forEach(r=>{if(day(r).slice(0,7)!==m)return;if(r.type==="income")inc+=r.amount;if(r.type==="expense"){exp+=r.amount;sp[r.category]=(sp[r.category]||0)+r.amount;}});
 $("#net").textContent=fmt(ast+dbt)+" "+cur;$("#ast").textContent=fmt(ast);$("#dbt").textContent=fmt(-dbt);$("#inc").textContent=fmt(inc);$("#exp").textContent=fmt(exp);
@@ -43,10 +44,12 @@ $("#buds").innerHTML=D.budgets.map(b=>{const v=b.cat==="Total"?exp:sp[b.cat]||0;
 const eff=r=>r.type==="income"?r.amount:-r.amount;
 async function apply(r,sign,fn){await runTransaction(db,async t=>{
 const s=await Promise.all([r.accountId,...(r.type==="transfer"?[r.toAccountId]:[])].map(i=>t.get(uref("accounts",i))));
-t.update(s[0].ref,{balance:s[0].data().balance+sign*eff(r)});if(s[1])t.update(s[1].ref,{balance:s[1].data().balance-sign*eff(r)});fn(t);});}
+if(s.some(x=>!x.exists()))throw new Error("The selected account no longer exists. Refresh and try again.");
+const first=s[0].data().balance+sign*eff(r);if(!Number.isSafeInteger(first))throw new Error("This transaction would exceed the supported balance range.");
+t.update(s[0].ref,{balance:first});if(s[1]){const second=s[1].data().balance-sign*eff(r);if(!Number.isSafeInteger(second))throw new Error("This transaction would exceed the supported balance range.");t.update(s[1].ref,{balance:second});}fn(t);});}
 const adv=(d,f)=>{const [yy,mm,dd]=d.split("-").map(Number);if(f==="weekly"){const x=new Date(Date.UTC(yy,mm-1,dd+7));return x.toISOString().slice(0,10);}const addMonths=f==="quarterly"?3:f==="yearly"?12:1;const first=new Date(Date.UTC(yy,mm-1+addMonths,1));const last=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();return new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth(),Math.min(dd,last))).toISOString().slice(0,10)};
 async function runDue(){
-const today=new Date().toISOString().slice(0,10);
+const today=localDate();
 for(const s of D.scheduled){
  let n=s.next,k=0;
  while(n<=today&&k++<12){
@@ -78,8 +81,8 @@ for(const s of D.scheduled){
 }
 const left=s=>s.total>0?Math.max(0,s.total-(s.done||0)):null;
 function endOf(s){const r=left(s);if(!r)return"";let e=s.next;for(let i=1;i<r;i++)e=adv(e,s.freq);return e}
-function sline(s){const r=left(s);if(r===0)return"completed, "+s.total+"/"+s.total+" paid";const e=endOf(s),t=new Date().toISOString().slice(0,10);return (s.done||0)+(s.total>0?"/"+s.total:"")+" paid, next "+s.next+(e?", "+r+" left, ends "+e+" ("+Math.ceil((new Date(e)-new Date(t))/864e5)+" days)":"")}
-function drawRep(){const m=$("#rmonth").value||(($("#rmonth").value=new Date().toISOString().slice(0,7)));const A=D.accounts,sm=l=>l.reduce((s,a)=>s+a.balance,0),I={},X={};let ti=0,te=0;
+function sline(s){const r=left(s);if(r===0)return"completed, "+s.total+"/"+s.total+" paid";const e=endOf(s),t=localDate();return (s.done||0)+(s.total>0?"/"+s.total:"")+" paid, next "+s.next+(e?", "+r+" left, ends "+e+" ("+Math.ceil((new Date(e)-new Date(t))/864e5)+" days)":"")}
+function drawRep(){const m=$("#rmonth").value||(($("#rmonth").value=monthKey()));const A=D.accounts,sm=l=>l.reduce((s,a)=>s+a.balance,0),I={},X={};let ti=0,te=0;
 D.records.forEach(r=>{if(day(r).slice(0,7)!==m||r.type==="transfer")return;const o=r.type==="income"?I:X;o[r.category]=(o[r.category]||0)+r.amount;r.type==="income"?ti+=r.amount:te+=r.amount});
 const li=(a,b,c,x)=>`<li><span>${a}${c?`<small>${c}</small>`:""}</span><b class="${x||""}">${b}</b></li>`,H=t=>`<h3>${t}</h3>`,nl=o=>Object.entries(o).map(([k,v])=>li(esc(k),fmt(v))).join("");
 const pr=a=>{const s=D.scheduled.find(x=>x.toId===a.id);return s?esc(s.freq)+" "+fmt(s.amount)+", "+sline(s):""};
@@ -104,29 +107,30 @@ const newAcc=id=>{endAcc();$("#accForm").hidden=false;$("#ainst").value=id;scrol
 const dl=(b,n)=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=n;a.click()},NAMES=["institutions","accounts","scheduled","budgets","records"];
 $("#rdl").onclick=()=>dl(new Blob([`<!doctype html><meta charset=utf-8><title>Money report</title><style>body{font:15px system-ui;max-width:700px;margin:20px auto;padding:0 12px}ul{list-style:none;padding:0}li{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding:6px 0}small{display:block;color:#666}.bar{display:none}.expense{color:#b42318}</style><h1>Money report, ${$("#rmonth").value}</h1>${$("#rep").innerHTML}`],{type:"text/html"}),"report-"+$("#rmonth").value+".html");
 $("#rpr").onclick=()=>print();
-$("#bak").onclick=async()=>{try{const j={app:"mywallet",currency:cur};for(const n of NAMES)j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...Object.fromEntries(Object.entries(d.data()).map(([k,v])=>[k,v&&v.toDate?{__t:v.toDate().toISOString()}:v]))}));dl(new Blob([JSON.stringify(j)],{type:"application/json"}),"wallet-backup-"+new Date().toISOString().slice(0,10)+".json")}catch(e){bad(e)}};
+$("#bak").onclick=async()=>{try{const j={app:"mywallet",currency:cur};for(const n of NAMES)j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...Object.fromEntries(Object.entries(d.data()).map(([k,v])=>[k,v&&v.toDate?{__t:v.toDate().toISOString()}:v]))}));dl(new Blob([JSON.stringify(j)],{type:"application/json"}),"wallet-backup-"+localDate()+".json")}catch(e){bad(e)}};
 $("#rbtn").onclick=()=>$("#restore").click();
 $("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
 const j=JSON.parse(await f.text()),allowed=["institutions","accounts","scheduled","budgets","records"];
 if(!j||j.app!=="mywallet"||!allowed.every(n=>Array.isArray(j[n])))throw new Error("This is not a valid My Wallet backup.");
 const ids=new Set();
 for(const n of allowed)for(const x of j[n]){
- if(!x||typeof x!=="object"||typeof x.id!=="string"||!x.id.trim())throw new Error("Backup contains an invalid item.");
+ if(!x||typeof x!=="object"||typeof x.id!=="string"||!/^[A-Za-z0-9_-]{1,128}$/.test(x.id))throw new Error("Backup contains an invalid item ID.");
  const key=n+"/"+x.id;if(ids.has(key))throw new Error("Backup contains duplicate IDs.");ids.add(key);
  if(n==="records"&&(!Number.isSafeInteger(x.amount)||x.amount<=0||!["income","expense","transfer"].includes(x.type)))throw new Error("Backup contains an invalid transaction.");
  if(n==="accounts"&&!Number.isSafeInteger(x.balance))throw new Error("Backup contains an invalid account balance.");
- if(n==="scheduled"&&(!Number.isSafeInteger(x.amount)||x.amount<=0||typeof x.next!=="string"||!/^\\d{4}-\\d{2}-\\d{2}$/.test(x.next)))throw new Error("Backup contains an invalid schedule.");
+ if(n==="scheduled"&&(!Number.isSafeInteger(x.amount)||x.amount<=0||typeof x.next!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(x.next)))throw new Error("Backup contains an invalid schedule.");
  if(n==="budgets"&&(!Number.isSafeInteger(x.limit)||x.limit<=0))throw new Error("Backup contains an invalid budget.");
 }
-if(!confirm("Restore this validated backup? Items with matching IDs will be overwritten."))return;
+if(!confirm("Restore this validated backup? Items with matching IDs will be overwritten. Existing items not present in the backup will remain."))return;
 const jobs=[];for(const n of allowed)for(const x of j[n]){const{id,...raw}=x;const d=Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,v&&v.__t?Timestamp.fromDate(new Date(v.__t)):v]));jobs.push({ref:uref(n,id),data:d});}
 for(let i=0;i<jobs.length;i+=450){const batch=writeBatch(db);for(const job of jobs.slice(i,i+450))batch.set(job.ref,job.data);await batch.commit();}
-alert("Restore complete.");
+if(typeof j.currency==="string"&&/^[A-Z]{3}$/.test(j.currency)){cur=j.currency;await setDoc(uref(),{currency:cur,onboarded:true},{merge:true});}
+alert("Restore complete. Reloading your wallet...");location.reload();
 }catch(er){bad(er)}finally{e.target.value=""}};$("#scancel").onclick=endSch;
-$("#adel").onclick=()=>{if(D.scheduled.some(s=>s.fromId===ea||s.toId===ea))return alert("This account is used in a schedule. Delete or change the schedule first.");if(confirm("Delete this account? Old records that used it will show as unknown."))deleteDoc(uref("accounts",ea)).then(endAcc).catch(bad)};
+$("#adel").onclick=()=>{if(D.scheduled.some(s=>s.fromId===ea||s.toId===ea))return alert("This account is used in a schedule. Delete or change the schedule first.");if(D.records.some(r=>r.accountId===ea||r.toAccountId===ea))return alert("This account has transaction history. Keep it to preserve your financial records; you can rename it instead.");if(confirm("Delete this account?"))deleteDoc(uref("accounts",ea)).then(endAcc).catch(bad)};
 $("#type").onchange=()=>{const t=$("#type").value==="transfer";$("#to").hidden=!t;$("#cat").hidden=t;};$("#type").onchange();
 $("#save").onclick=()=>{const type=$("#type").value,amount=cents($("#amt").value);
-if(amount<=0)return alert("Enter an amount greater than zero.");if(!D.accounts.length)return alert("Add an account first.");
+if(amount<=0||!Number.isSafeInteger(amount))return alert("Enter a valid amount greater than zero (maximum supported amount is limited for safe calculations).");if(!$("date").value)return alert("Choose a transaction date.");if(!D.accounts.length)return alert("Add an account first.");
 if(type==="transfer"&&$("#from").value===$("#to").value)return alert("Choose two different accounts.");
 const r={type,amount,accountId:$("#from").value,category:type==="transfer"?"":$("#cat").value,note:$("#note").value,date:Timestamp.fromDate(new Date($("#date").value))};
 if(type==="transfer")r.toAccountId=$("#to").value;
