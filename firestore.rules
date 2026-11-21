@@ -38,6 +38,13 @@ service cloud.firestore {
           && request.resource.data.limit is int
           && request.resource.data.limit > 0;
       }
+      match /categories/{id} {
+        allow read, delete: if signedInAs(uid);
+        allow create, update: if signedInAs(uid)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 60;
+      }
       match /records/{id} {
         allow read, delete: if signedInAs(uid);
         allow create, update: if signedInAs(uid)
