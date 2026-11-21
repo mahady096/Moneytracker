@@ -7,17 +7,17 @@ const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&"
 const fmt=n=>(n/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}),cents=v=>{const n=Number.parseFloat(v||0);if(!Number.isFinite(n))return 0;const c=Math.round(n*100);return Number.isSafeInteger(c)?c:0};
 const localDate=(d=new Date())=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`},monthKey=(d=new Date())=>localDate(d).slice(0,7);
 const KINDS=["Bank","Mobile banking","Stock market","Insurance","Cash","Other"],TYPES=["Savings","Current","DPS (recurring deposit)","Fixed deposit","Mobile wallet (MFS)","Investment","Insurance","Loan","Credit card","Cash"],DEBT=["Loan","Credit card"];
-const CATS=["Food","Transport","Bills","Rent","Shopping","Health","Education","Entertainment","Savings","Salary","Other"],bad=e=>alert(e.message||e);
-let back=12,recSub=null,lim=50,fr=[],ea=null,es=null,uid,cur="BDT",D={institutions:[],accounts:[],records:[],scheduled:[],budgets:[],categories:[]},L={},subs=[],due=0;
+const CATS=["Food","Transport","Bills","Rent","Shopping","Health","Education","Entertainment","Savings","Salary","Other"],EXTRA=["categories","debts","goals"],bad=e=>alert(e.message||e);
+let back=12,recSub=null,lim=50,fr=[],ea=null,es=null,uid,cur="BDT",D={institutions:[],accounts:[],records:[],scheduled:[],budgets:[],categories:[],debts:[],goals:[]},L={},subs=[],due=0;
 const show=id=>["auth","onboard","app"].forEach(s=>$("#"+s).hidden=s!==id);
 const uref=(...p)=>doc(db,"users",uid,...p),ucol=n=>collection(db,"users",uid,n),add=(n,d)=>addDoc(ucol(n),{...d,createdAt:serverTimestamp()}).catch(bad);
 const cred=()=>[auth,$("#email").value.trim(),$("#pass").value],err=e=>$("#err").textContent=e.message;
 $("#login").onclick=()=>si(...cred()).catch(err);$("#signup").onclick=()=>su(...cred()).catch(err);
 $("#google").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(err);$("#out").onclick=()=>signOut(auth);
-onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;if(!u)return show("auth");uid=u.uid;try{const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();}catch(e){show("auth");err(e)}});
+onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;if(!u)return show("auth");uid=u.uid;try{const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();lock();}catch(e){show("auth");err(e)}});
 $("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT";await setDoc(uref(),{currency:cur,onboarded:true});run();tab("acc");}catch(e){bad(e)}};
 const sub=(n,q)=>subs.push(onSnapshot(q||ucol(n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));L[n]=1;draw();}));
-function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets","categories"].forEach(n=>sub(n));subRec();}
+function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets","categories","debts","goals"].forEach(n=>sub(n));subRec();}
 function subRec(){recSub&&recSub();const d=new Date(),from=new Date(d.getFullYear(),d.getMonth()-back+1,1);recSub=onSnapshot(query(ucol("records"),where("date",">=",Timestamp.fromDate(from)),orderBy("date","desc")),s=>{D.records=s.docs.map(x=>({id:x.id,...x.data()}));L.records=1;draw()});subs.push(recSub)}
 const tab=t=>{document.querySelectorAll(".tab").forEach(e=>e.hidden=e.id!=="t-"+t);document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));};
 $("#nav").onclick=e=>e.target.dataset.t&&tab(e.target.dataset.t);tab("home");
@@ -45,7 +45,11 @@ $("#insts").innerHTML=[...D.institutions,...(loose?[{id:"",name:"Unassigned",kin
 $("#recs").innerHTML=(fr=D.records.filter(r=>(!$("#rfil").value||r.accountId===$("#rfil").value||r.toAccountId===$("#rfil").value)&&(!$("#rsearch").value||(r.note+" "+r.category+" "+nameOf(r.accountId)).toLowerCase().includes($("#rsearch").value.toLowerCase())))).slice(0,lim).map(r=>`<li data-r="${r.id}"><span>${r.type==="transfer"?esc(nameOf(r.accountId))+" to "+esc(nameOf(r.toAccountId)):esc(r.category)+", "+esc(nameOf(r.accountId))}<small>${day(r)} ${esc(r.note||"")}</small></span><b class="${r.type}">${r.type==="expense"?"-":r.type==="income"?"+":""}${fmt(r.amount)}</b><button class="alt" data-id="${r.id}" aria-label="Delete record">×</button></li>`).join("")||"<li>No records yet.</li>";$("#more").textContent=fr.length>lim?"Show more":"Load older records ("+back+" months loaded)";$("#more").hidden=fr.length<=lim&&back>=240;
 $("#schs").innerHTML=D.scheduled.map(s=>`<li data-e="${s.id}"><span>${esc(s.name)}<small>${s.fromId?esc(nameOf(s.fromId)):"Income"}${s.toId?" to "+esc(nameOf(s.toId)):", "+esc(s.cat)}, ${s.freq}, ${sline(s)}</small></span><b>${fmt(s.amount)}</b><button class="alt" data-s="${s.id}" aria-label="Delete schedule">×</button></li>`).join("")||"<li>No schedules yet.</li>";
 $("#buds").innerHTML=D.budgets.map(b=>{const v=b.cat==="Total"?exp:sp[b.cat]||0;return`<li><span>${esc(b.cat)}, ${fmt(v)} of ${fmt(b.limit)}${bar(v/b.limit*100,v>b.limit)}</span><button class="alt" data-b="${b.id}" aria-label="Delete budget">×</button></li>`}).join("")||"<li>No budgets yet.</li>";
-$("#upc").innerHTML=D.scheduled.filter(s=>left(s)!==0).sort((a,b)=>a.next<b.next?-1:1).slice(0,5).map(s=>`<li><span>${esc(s.name)}<small>${s.next}</small></span><b>${fmt(s.amount)}</b></li>`).join("")||"<li>No upcoming schedules.</li>";drawRep();}
+$("#upc").innerHTML=D.scheduled.filter(s=>left(s)!==0).sort((a,b)=>a.next<b.next?-1:1).slice(0,5).map(s=>`<li><span>${esc(s.name)}<small>${s.next}</small></span><b>${fmt(s.amount)}</b></li>`).join("")||"<li>No upcoming schedules.</li>";$("#alerts").innerHTML=D.budgets.map(b=>{const v=b.cat==="Total"?exp:sp[b.cat]||0,p=v/b.limit*100;return p>=80?`<li><span>${esc(b.cat)} budget<small>${p>=100?"Over budget":"Reached "+Math.round(p)+"%"}: ${fmt(v)} of ${fmt(b.limit)}</small></span></li>`:""}).join("")||"<li>No alerts.</li>";
+$("#goals").innerHTML=D.goals.map(g=>`<li data-g="${g.id}"><span>${esc(g.name)}, ${fmt(g.saved)} of ${fmt(g.target)}${bar(g.saved/g.target*100)}<small>Tap to add savings</small></span><button class="alt" data-gd="${g.id}" aria-label="Delete goal">×</button></li>`).join("")||"<li>No goals yet.</li>";
+let rc=0,ow=0;D.debts.forEach(d=>{const rm=d.amount-d.paid;d.dir==="lent"?rc+=rm:ow+=rm});
+$("#debts").innerHTML=`<li><span>You will receive<small>People who owe you</small></span><b class="income">${fmt(rc)}</b></li><li><span>You owe<small>Money you must pay back</small></span><b class="expense">${fmt(ow)}</b></li>`+D.debts.map(d=>`<li data-p="${d.id}"><span>${esc(d.person)}${bar(d.paid/d.amount*100)}<small>${d.dir==="lent"?"Lent":"Borrowed"}, ${fmt(d.paid)} of ${fmt(d.amount)} settled${d.note?", "+esc(d.note):""}. Tap to record a payment</small></span><button class="alt" data-dd="${d.id}" aria-label="Delete">×</button></li>`).join("");
+drawRep();}
 const eff=r=>r.type==="income"?r.amount:-r.amount;
 async function apply(r,sign,fn){await runTransaction(db,async t=>{
 const s=await Promise.all([r.accountId,...(r.type==="transfer"?[r.toAccountId]:[])].map(i=>t.get(uref("accounts",i))));
@@ -130,13 +134,13 @@ const newAcc=id=>{endAcc();$("#accForm").hidden=false;$("#ainst").value=id;scrol
 const dl=(b,n)=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=n;a.click()},NAMES=["institutions","accounts","scheduled","budgets","records"];
 $("#rdl").onclick=()=>dl(new Blob([`<!doctype html><meta charset=utf-8><title>Money report</title><style>body{font:15px system-ui;max-width:700px;margin:20px auto;padding:0 12px}ul{list-style:none;padding:0}li{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding:6px 0}small{display:block;color:#666}.bar{display:none}.dn{display:flex;gap:12px}.dn svg{width:150px}svg.ch{max-width:100%}.sw{display:inline-block;width:10px;height:10px;margin:0 6px}.expense{color:#b42318}</style><h1>Money report, ${$("#rmonth").value}</h1>${$("#rep").innerHTML}`],{type:"text/html"}),"report-"+$("#rmonth").value+".html");
 $("#rpr").onclick=()=>print();
-$("#bak").onclick=async()=>{try{const j={app:"mywallet",currency:cur};for(const n of[...NAMES,"categories"])j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...Object.fromEntries(Object.entries(d.data()).map(([k,v])=>[k,v&&v.toDate?{__t:v.toDate().toISOString()}:v]))}));dl(new Blob([JSON.stringify(j)],{type:"application/json"}),"wallet-backup-"+localDate()+".json")}catch(e){bad(e)}};
+$("#bak").onclick=async()=>{try{const j={app:"mywallet",currency:cur};for(const n of[...NAMES,...EXTRA])j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...Object.fromEntries(Object.entries(d.data()).map(([k,v])=>[k,v&&v.toDate?{__t:v.toDate().toISOString()}:v]))}));dl(new Blob([JSON.stringify(j)],{type:"application/json"}),"wallet-backup-"+localDate()+".json")}catch(e){bad(e)}};
 $("#rbtn").onclick=()=>$("#restore").click();
 $("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
 const j=JSON.parse(await f.text()),allowed=["institutions","accounts","scheduled","budgets","records"];
 if(!j||j.app!=="mywallet"||!allowed.every(n=>Array.isArray(j[n])))throw new Error("This is not a valid My Wallet backup.");
 const ids=new Set();
-for(const n of[...allowed,"categories"])for(const x of j[n]||[]){
+for(const n of[...allowed,...EXTRA])for(const x of j[n]||[]){
  if(!x||typeof x!=="object"||typeof x.id!=="string"||!/^[A-Za-z0-9_-]{1,128}$/.test(x.id))throw new Error("Backup contains an invalid item ID.");
  const key=n+"/"+x.id;if(ids.has(key))throw new Error("Backup contains duplicate IDs.");ids.add(key);
  if(n==="records"&&(!Number.isSafeInteger(x.amount)||x.amount<=0||!["income","expense","transfer"].includes(x.type)))throw new Error("Backup contains an invalid transaction.");
@@ -145,7 +149,7 @@ for(const n of[...allowed,"categories"])for(const x of j[n]||[]){
  if(n==="budgets"&&(!Number.isSafeInteger(x.limit)||x.limit<=0))throw new Error("Backup contains an invalid budget.");
 }
 if(!confirm("Restore this validated backup? Items with matching IDs will be overwritten. Existing items not present in the backup will remain."))return;
-const jobs=[];for(const n of[...allowed,"categories"])for(const x of j[n]||[]){const{id,...raw}=x;const d=Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,v&&v.__t?Timestamp.fromDate(new Date(v.__t)):v]));jobs.push({ref:uref(n,id),data:d});}
+const jobs=[];for(const n of[...allowed,...EXTRA])for(const x of j[n]||[]){const{id,...raw}=x;const d=Object.fromEntries(Object.entries(raw).map(([k,v])=>[k,v&&v.__t?Timestamp.fromDate(new Date(v.__t)):v]));jobs.push({ref:uref(n,id),data:d});}
 for(let i=0;i<jobs.length;i+=450){const batch=writeBatch(db);for(const job of jobs.slice(i,i+450))batch.set(job.ref,job.data);await batch.commit();}
 if(typeof j.currency==="string"&&/^[A-Z]{3}$/.test(j.currency)){cur=j.currency;await setDoc(uref(),{currency:cur,onboarded:true},{merge:true});}
 alert("Restore complete. Reloading your wallet...");location.reload();
@@ -170,8 +174,19 @@ $("#pwreset").onclick=()=>auth.currentUser?.email&&sendPasswordResetEmail(auth,a
 $("#setb").onclick=()=>tab("set");$("#more").onclick=()=>{if(fr.length>lim)lim+=50;else{back+=12;subRec()}draw()};
 $("#addCat").onclick=()=>{const n=$("#cname").value.trim();if(!n||cats().some(c=>c.toLowerCase()===n.toLowerCase()))return alert("Enter a new category name.");add("categories",{name:n}).then(()=>$("#cname").value="")};
 $("#delAll").onclick=async()=>{if(prompt("This permanently deletes your account and ALL your data. Type DELETE to confirm.")!=="DELETE")return;const u=auth.currentUser;if(Date.now()-new Date(u.metadata.lastSignInTime)>4*60*1000)return alert("For security, sign out, sign in again, then retry within a few minutes.");
-try{subs.forEach(f=>f());subs=[];for(const n of[...NAMES,"categories"]){const s=await getDocs(ucol(n));for(let i=0;i<s.docs.length;i+=450){const b=writeBatch(db);s.docs.slice(i,i+450).forEach(d=>b.delete(d.ref));await b.commit()}}await deleteDoc(uref());await deleteUser(u);alert("Your account and data were deleted.")}catch(e){bad(e)}};
-document.onclick=e=>{const el=e.target.closest("[data-id],[data-s],[data-b],[data-a],[data-e],[data-n],[data-r],[data-i],[data-c]"),d=el?el.dataset:{},r=D.records.find(x=>x.id===d.id);
-if(r&&confirm("Delete this record? The balance will be restored."))apply(r,-1,t=>t.delete(uref("records",r.id))).catch(bad);
+try{subs.forEach(f=>f());subs=[];for(const n of[...NAMES,...EXTRA]){const s=await getDocs(ucol(n));for(let i=0;i<s.docs.length;i+=450){const b=writeBatch(db);s.docs.slice(i,i+450).forEach(d=>b.delete(d.ref));await b.commit()}}await deleteDoc(uref());await deleteUser(u);alert("Your account and data were deleted.")}catch(e){bad(e)}};
+let tt;const toast=(m,undo)=>{const e=$("#toast");e.innerHTML=esc(m)+(undo?' <button id="undo">Undo</button>':"");e.hidden=false;if(undo)$("#undo").onclick=()=>{e.hidden=true;undo()};clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,7000)};
+const bump=(col,id,field,cap,label)=>{const it=D[col].find(x=>x.id===id),v=cents(prompt(label));if(v<=0)return;updateDoc(uref(col,id),{[field]:Math.min(cap(it),it[field]+v)}).catch(bad)};
+$("#addGoal").onclick=()=>{const t=cents($("#gtarget").value),n=$("#gname").value.trim();if(!n||t<=0)return alert("Enter a goal name and a target amount.");add("goals",{name:n,target:t,saved:0}).then(()=>{$("#gname").value=$("#gtarget").value=""})};
+$("#addDebt").onclick=()=>{const a=cents($("#damt").value),n=$("#dwho").value.trim();if(!n||a<=0)return alert("Enter a person and an amount.");add("debts",{person:n,dir:$("#ddir").value,amount:a,paid:0,note:$("#dnote").value.trim()}).then(()=>{$("#dwho").value=$("#damt").value=$("#dnote").value=""})};
+const lk=()=>"mwpin:"+uid,H=async p=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode("mw:"+uid+p)))].map(b=>b.toString(16).padStart(2,"0")).join("");
+function lock(){if(uid&&localStorage.getItem(lk())){$("#lock").hidden=false;$("#pin").value="";$("#pinerr").textContent="";$("#pin").focus()}}
+$("#unlock").onclick=async()=>{if(await H($("#pin").value)===localStorage.getItem(lk()))$("#lock").hidden=true;else $("#pinerr").textContent="Wrong PIN."};
+$("#setpin").onclick=async()=>{const p=prompt("Choose a 4 to 8 digit PIN");if(!p)return;if(!/^\d{4,8}$/.test(p))return alert("PIN must be 4 to 8 digits.");localStorage.setItem(lk(),await H(p));alert("PIN saved on this device.")};
+$("#rmpin").onclick=()=>{localStorage.removeItem(lk());alert("PIN removed.")};
+$("#forgotpin").onclick=()=>{localStorage.removeItem(lk());$("#lock").hidden=true;signOut(auth)};
+let hid=0;document.addEventListener("visibilitychange",()=>{if(document.hidden)hid=Date.now();else if(hid&&Date.now()-hid>30000)lock()});
+document.onclick=e=>{const el=e.target.closest("[data-id],[data-s],[data-b],[data-a],[data-e],[data-n],[data-r],[data-i],[data-c],[data-g],[data-gd],[data-p],[data-dd]"),d=el?el.dataset:{},r=D.records.find(x=>x.id===d.id);
+if(r&&confirm("Delete this record? The balance will be restored."))apply(r,-1,t=>t.delete(uref("records",r.id))).then(()=>toast("Record deleted.",()=>{const{id,...x}=r;apply(x,1,t=>t.set(uref("records",id),x)).catch(bad)})).catch(bad);
 if(d.s&&confirm("Delete this schedule?"))deleteDoc(uref("scheduled",d.s)).catch(bad);else if(d.e)editSch(D.scheduled.find(x=>x.id===d.e));
-if(d.b)deleteDoc(uref("budgets",d.b)).catch(bad);if(d.c&&confirm("Delete this category? Existing records keep its name."))deleteDoc(uref("categories",d.c)).catch(bad);if(d.r)editRec(D.records.find(x=>x.id===d.r));if(d.i)editInst(d.i);if(d.n)newAcc(d.n);if(d.a)editAcc(D.accounts.find(x=>x.id===d.a));};
+if(d.b)deleteDoc(uref("budgets",d.b)).catch(bad);if(d.c&&confirm("Delete this category? Existing records keep its name."))deleteDoc(uref("categories",d.c)).catch(bad);if(d.g)bump("goals",d.g,"saved",()=>Infinity,"Amount to add to this goal:");if(d.p)bump("debts",d.p,"paid",x=>x.amount,"Payment amount received or paid:");if(d.gd&&confirm("Delete this goal?"))deleteDoc(uref("goals",d.gd)).catch(bad);if(d.dd&&confirm("Delete this entry?"))deleteDoc(uref("debts",d.dd)).catch(bad);if(d.r)editRec(D.records.find(x=>x.id===d.r));if(d.i)editInst(d.i);if(d.n)newAcc(d.n);if(d.a)editAcc(D.accounts.find(x=>x.id===d.a));};

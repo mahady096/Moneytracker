@@ -45,6 +45,20 @@ service cloud.firestore {
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 60;
       }
+      match /debts/{id} {
+        allow read, delete: if signedInAs(uid);
+        allow create, update: if signedInAs(uid)
+          && request.resource.data.person is string
+          && request.resource.data.amount is int && request.resource.data.amount > 0
+          && request.resource.data.paid is int && request.resource.data.paid >= 0;
+      }
+      match /goals/{id} {
+        allow read, delete: if signedInAs(uid);
+        allow create, update: if signedInAs(uid)
+          && request.resource.data.name is string
+          && request.resource.data.target is int && request.resource.data.target > 0
+          && request.resource.data.saved is int && request.resource.data.saved >= 0;
+      }
       match /records/{id} {
         allow read, delete: if signedInAs(uid);
         allow create, update: if signedInAs(uid)
