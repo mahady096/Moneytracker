@@ -130,7 +130,7 @@ alert("Restore complete. Reloading your wallet...");location.reload();
 $("#adel").onclick=()=>{if(D.scheduled.some(s=>s.fromId===ea||s.toId===ea))return alert("This account is used in a schedule. Delete or change the schedule first.");if(D.records.some(r=>r.accountId===ea||r.toAccountId===ea))return alert("This account has transaction history. Keep it to preserve your financial records; you can rename it instead.");if(confirm("Delete this account?"))deleteDoc(uref("accounts",ea)).then(endAcc).catch(bad)};
 $("#type").onchange=()=>{const t=$("#type").value==="transfer";$("#to").hidden=!t;$("#cat").hidden=t;};$("#type").onchange();
 $("#save").onclick=()=>{const type=$("#type").value,amount=cents($("#amt").value);
-if(amount<=0||!Number.isSafeInteger(amount))return alert("Enter a valid amount greater than zero (maximum supported amount is limited for safe calculations).");if(!$("date").value)return alert("Choose a transaction date.");if(!D.accounts.length)return alert("Add an account first.");
+if(amount<=0||!Number.isSafeInteger(amount))return alert("Enter a valid amount greater than zero (maximum supported amount is limited for safe calculations).");if(!$("#date").value)return alert("Choose a transaction date.");if(!D.accounts.length)return alert("Add an account first.");
 if(type==="transfer"&&$("#from").value===$("#to").value)return alert("Choose two different accounts.");
 const r={type,amount,accountId:$("#from").value,category:type==="transfer"?"":$("#cat").value,note:$("#note").value,date:Timestamp.fromDate(new Date($("#date").value))};
 if(type==="transfer")r.toAccountId=$("#to").value;
