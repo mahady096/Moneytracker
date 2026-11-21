@@ -18,3 +18,8 @@ main{padding-bottom:84px}h4{margin:18px 0 0;display:flex;justify-content:space-b
 .bar{height:6px;background:var(--bd);border-radius:3px;margin-top:4px}.bar i{display:block;height:100%;background:var(--ac);border-radius:3px}.bar i.over{background:var(--bad)}
 .grid button,.row button{width:auto}#save,#addSch,#addAcc{grid-column:1/-1;width:100%}.row{grid-template-columns:2fr 1fr auto}
 .grid .alt{grid-column:1/-1;width:100%}li[data-a],li[data-e]{cursor:pointer}#nav button{font-size:.72rem}.tot{font-weight:700}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;margin:8px 0}
+.tile{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px;cursor:pointer;min-width:0}
+.tile small{display:block;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tile b{display:block;font-size:.9rem}
+.tile.new{background:none;border:1px dashed var(--ac);color:var(--ac);display:flex;align-items:center;justify-content:center;text-align:center}
+.g2 .alt{grid-column:auto}@media print{#nav,header,#rmonth,#t-rep>.grid{display:none!important}}
