@@ -1,7 +1,11 @@
-// Paste your Firebase web app config here (Firebase Console > Project settings > Your apps)
+// Firebase Web App configuration
+// Source: Firebase Console > Project settings > Your apps
 export const firebaseConfig = {
   apiKey: "AIzaSyApEgz6URSApeQ7GQ49n4KzRjRUATrIEOI",
   authDomain: "moneytrack-c5787.firebaseapp.com",
   projectId: "moneytrack-c5787",
-  appId: "1:967727640118:web:c6db4d4844d3756e1eb297"
+  storageBucket: "moneytrack-c5787.firebasestorage.app",
+  messagingSenderId: "967727640118",
+  appId: "1:967727640118:web:c6db4d4844d3756e1eb297",
+  measurementId: "G-81CGY1YJD9"
 };

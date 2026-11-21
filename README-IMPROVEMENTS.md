@@ -11,16 +11,15 @@ This package preserves the existing My Wallet features and improves its mobile p
 - Transaction updates now fail with a clear message if an account no longer exists or a balance would exceed the safe integer range.
 - Account deletion is blocked when transaction history exists, preserving historical financial data.
 - Backup restore validates document IDs and values, restores the selected currency, and clearly explains that records absent from the backup are not deleted.
-- Keeps the Firebase configuration unchanged because the correct Auth domain must be copied from the project's Firebase Console, not guessed.
+- Updated the Firebase web configuration using the exact values supplied from Firebase Console, including the matching `authDomain`, `storageBucket`, `messagingSenderId`, and `measurementId`.
 
 ## Mandatory Firebase checks before publishing
 
-1. Open `firebase-config.js` and compare **all four values** with Firebase Console → Project settings → Your apps → Web app configuration.
-2. The current file has `projectId: "moneytrack-c5787"` and `authDomain: "oneytrack-c5787.firebaseapp.com"`. These do not match. Confirm the exact Auth domain in Firebase Console and correct it if required. Do not deploy until this is verified.
-3. In Firebase Authentication, enable Email/Password and Google sign-in if those options are offered in the app. Add the deployed hostname to Authentication → Settings → Authorized domains.
-4. Deploy `firestore.rules` to the same Firebase project used by `firebase-config.js`.
-5. Test with a disposable account before importing real financial data. Verify sign-up, sign-in, sign-out, add/edit/delete account, income, expense, transfer, scheduled payments, budgets, CSV, backup and restore.
-6. Test two different accounts to confirm one user's data cannot be read by another user. Test on a second device/browser to confirm sync.
+1. `firebase-config.js` has been filled with the configuration supplied from Firebase Console. Recheck it against Project settings → Your apps before production release.
+2. In Firebase Authentication, enable Email/Password and Google sign-in if those options are offered in the app. Add the deployed hostname to Authentication → Settings → Authorized domains.
+3. Deploy `firestore.rules` to the same Firebase project used by `firebase-config.js`.
+4. Test with a disposable account before importing real financial data. Verify sign-up, sign-in, sign-out, add/edit/delete account, income, expense, transfer, scheduled payments, budgets, CSV, backup and restore.
+5. Test two different accounts to confirm one user's data cannot be read by another user. Test on a second device/browser to confirm sync.
 
 ## Firestore rules deployment
 
@@ -39,7 +38,7 @@ If the actual project ID shown in Firebase Console is different, use that exact 
 
 ## Known release limitations
 
-- This is a release candidate, not a certified production release: Firebase credentials/domain, Authentication providers, deployed rules, real Firestore behavior and multi-device synchronization cannot be verified from this source archive alone.
+- This is a release candidate, not a certified production release: Authentication providers, deployed rules, real Firestore behavior and multi-device synchronization cannot be verified from this source archive alone.
 - The interface remains English in this build; Bengali/English language switching has not been implemented.
 - Currency is a per-wallet display code. This app does not perform foreign-exchange conversion.
 - Scheduled items run when the user opens the app on or after the due date; they are not a server-side notification or background scheduler.
