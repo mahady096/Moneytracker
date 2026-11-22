@@ -1,6 +1,6 @@
-# My Wallet — release candidate
+# Money Tracker — release candidate
 
-This package preserves the existing My Wallet features and improves its mobile presentation and several reliability safeguards.
+This package preserves the existing Money Tracker features and improves its mobile presentation and several reliability safeguards.
 
 ## Included improvements
 

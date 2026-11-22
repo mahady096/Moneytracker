@@ -1,4 +1,4 @@
-# My Wallet (Moneytracker)
+# Money Tracker
 
 A personal finance web app and installable PWA: institutions and accounts, income/expense/transfer records, scheduled payments, budgets, savings goals, lend/borrow tracking, charts and reports, backup/restore, PIN lock.
 
