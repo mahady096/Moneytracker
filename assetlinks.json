@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.app.moneytracker",
+      "sha256_cert_fingerprints": [
+        "49:C4:8D:59:FC:A0:7D:E1:97:CB:D2:85:A3:75:34:8E:5D:C3:30:B3:F5:24:26:7E:91:78:DA:8F:38:0D:52:C6"
+      ]
+    }
+  }
+]
