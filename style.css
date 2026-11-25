@@ -16,3 +16,48 @@ header{display:flex;justify-content:space-between;align-items:center;gap:12px;ma
 .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 6px 0 8px}.ch{width:100%;height:auto}.ch text{fill:var(--mut)}h4[data-i]{cursor:pointer}
 .danger{color:var(--bad)!important;border-color:var(--bad)!important;margin-top:12px}a.btn{display:block;text-align:center;text-decoration:none;padding:10px 12px;border:1px solid var(--bd);border-radius:8px;color:var(--fg);margin:4px 0}.hbtn{display:flex;gap:6px}.auth-panel a{color:var(--ac)}
 #lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:99;padding:20px}#lock div{width:100%;max-width:320px}#toast{position:fixed;left:12px;right:12px;bottom:84px;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;z-index:50;display:flex;justify-content:space-between;align-items:center}#toast button{width:auto;margin:0;background:none;color:var(--bg);text-decoration:underline;border:0}
+
+
+/* Money Tracker 1.1 — premium dashboard and explicit appearance preferences */
+:root[data-theme="light"]{color-scheme:light;--bg:#f3f6fb;--fg:#152235;--card:#fff;--mut:#69788c;--ac:#087f75;--ac-soft:#e3f4f1;--bd:#e2e8f0;--bad:#c2414a;--good:#087f68;--shadow:0 12px 30px rgba(25,42,70,.07)}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#0a1220;--fg:#edf3fb;--card:#111d30;--mut:#9aabc0;--ac:#45c6b1;--ac-soft:#173b3b;--bd:#26364d;--bad:#ff8585;--good:#5bd5b7;--shadow:0 14px 34px rgba(0,0,0,.24)}
+body{letter-spacing:.005em}
+main{max-width:980px}
+header{border-bottom-color:color-mix(in srgb,var(--bd) 75%,transparent);margin-bottom:22px}
+header h2{font-size:1.38rem;font-weight:780;letter-spacing:-.04em}
+header .eyebrow{margin-bottom:3px}
+header button{font-size:.78rem;min-height:38px;padding:8px 11px}
+.hero{padding:28px 26px;border-radius:25px;background:linear-gradient(125deg,#103d50 0%,#087f75 58%,#18a58e 100%);box-shadow:0 18px 38px rgba(8,95,91,.18)}
+.hero small{letter-spacing:.06em;text-transform:uppercase;font-size:.72rem}
+.hero b{font-size:clamp(2.15rem,7vw,3.05rem);font-variant-numeric:tabular-nums}
+.cards{gap:12px;margin:14px 0 20px}
+.cards div,.dash-panel{background:var(--card);border:1px solid var(--bd);border-radius:18px;box-shadow:var(--shadow)}
+.cards div{padding:16px}
+.cards small{letter-spacing:.025em}
+.cards b{font-variant-numeric:tabular-nums}
+.dash-panel{padding:17px 18px;margin:14px 0 20px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.section-head h3{margin:0;font-size:1.08rem}
+.section-head .eyebrow{margin:0 0 3px}
+.panel-note{font-size:.76rem;color:var(--mut)}
+.quick-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.quick-action{display:flex;align-items:center;justify-content:center;gap:8px;min-height:54px;margin:0;padding:10px 8px;border-radius:14px;font-size:.86rem;background:var(--ac-soft);border:1px solid color-mix(in srgb,var(--ac) 22%,var(--bd));color:var(--ac)}
+.quick-action.positive{background:var(--ac);color:#fff}
+.quick-icon{font-size:1.25rem;line-height:1}
+#cashflow .ch{max-height:180px}
+#cashflow .hint{margin-top:5px}
+h3{font-weight:760}
+.tab>h3:first-child{margin-top:8px}
+#nav{box-shadow:0 15px 40px rgba(10,25,45,.18);border-radius:20px}
+#nav button{font-size:.73rem;letter-spacing:.005em}
+.tile,.cards div,button,input,select{transition:background-color .18s,border-color .18s,box-shadow .18s,transform .15s}
+button:focus-visible,input:focus-visible,select:focus-visible{outline-offset:3px}
+@media(max-width:680px){
+ .hero{padding:24px 20px;border-radius:21px}
+ .dash-panel{padding:15px;border-radius:17px}
+ .quick-actions{gap:7px}
+ .quick-action{font-size:.76rem;flex-direction:column;gap:3px;min-height:62px}
+ header{align-items:flex-start}
+ header .hbtn{flex-wrap:wrap;justify-content:flex-end}
+}
+@media(max-width:390px){header .hbtn{gap:4px}header button{font-size:.68rem;padding:7px 8px}}

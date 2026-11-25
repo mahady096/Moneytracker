@@ -43,3 +43,15 @@ If the actual project ID shown in Firebase Console is different, use that exact 
 - Currency is a per-wallet display code. This app does not perform foreign-exchange conversion.
 - Scheduled items run when the user opens the app on or after the due date; they are not a server-side notification or background scheduler.
 - Backups contain personal financial data. Store exported JSON files securely and never share them publicly.
+
+
+## Version 1.1.0 development changes
+- Home dashboard now includes direct Add income, Add expense and Transfer actions.
+- Home dashboard now displays the existing six-month income-versus-expense chart.
+- Added a persistent Auto / Light / Dark theme selector; Auto follows the device appearance.
+- Refined dashboard card hierarchy, spacing, typography and mobile navigation styling.
+- Firestore debt and goal rules now enforce `paid <= amount` and `saved <= target`; the goal contribution action is capped at the target to match this validation.
+- Service worker cache version advanced to `mw-v4`.
+
+## Data preservation
+This source update does not rename collections, change document IDs, migrate user records, or delete existing user data. The new Firestore constraints apply to future writes after rules deployment. Before deploying rules to production, test them with a disposable account and inspect any legacy debt or goal records that may already exceed their stated totals.

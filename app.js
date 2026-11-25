@@ -19,6 +19,22 @@ $("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT
 const sub=(n,q)=>subs.push(onSnapshot(q||ucol(n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));L[n]=1;draw();}));
 function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets","categories","debts","goals"].forEach(n=>sub(n));subRec();}
 function subRec(){recSub&&recSub();const d=new Date(),from=new Date(d.getFullYear(),d.getMonth()-back+1,1);recSub=onSnapshot(query(ucol("records"),where("date",">=",Timestamp.fromDate(from)),orderBy("date","desc")),s=>{D.records=s.docs.map(x=>({id:x.id,...x.data()}));L.records=1;draw()});subs.push(recSub)}
+const themeModes=["auto","light","dark"];
+function applyTheme(mode){
+  const root=document.documentElement;
+  if(mode==="auto")root.removeAttribute("data-theme");else root.setAttribute("data-theme",mode);
+  const b=$("#themeToggle");if(b){b.textContent="Theme: "+mode[0].toUpperCase()+mode.slice(1);b.setAttribute("aria-label","Appearance: "+mode);}
+  try{localStorage.setItem("mw-theme",mode)}catch(e){}
+}
+let themeMode="auto";
+try{themeMode=themeModes.includes(localStorage.getItem("mw-theme"))?localStorage.getItem("mw-theme"):"auto"}catch(e){}
+applyTheme(themeMode);
+$("#themeToggle").onclick=()=>{themeMode=themeModes[(themeModes.indexOf(themeMode)+1)%themeModes.length];applyTheme(themeMode)};
+document.addEventListener("click",e=>{
+ const b=e.target.closest("[data-quick]");if(!b)return;
+ const kind=b.dataset.quick;tab("rec");$("#type").value=kind;$("#type").dispatchEvent(new Event("change"));
+ $("#date").value=localDate();$("#amt").focus();window.scrollTo({top:0,behavior:"smooth"});
+});
 const tab=t=>{document.querySelectorAll(".tab").forEach(e=>e.hidden=e.id!=="t-"+t);document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));};
 $("#nav").onclick=e=>e.target.dataset.t&&tab(e.target.dataset.t);tab("home");
 const o=(l,f=x=>x)=>l.map(x=>`<option>${esc(f(x))}</option>`).join(""),bar=(p,x)=>`<div class="bar"><i class="${x?"over":""}" style="width:${Math.min(100,p||0)}%"></i></div>`;
@@ -38,7 +54,7 @@ const iv=$("#ainst").value;$("#ainst").innerHTML=D.institutions.map(i=>`<option 
 const m=monthKey(),sp={};let inc=0,exp=0,ast=0,dbt=0;
 D.accounts.forEach(a=>a.balance>0?ast+=a.balance:dbt+=a.balance);
 D.records.forEach(r=>{if(day(r).slice(0,7)!==m)return;if(r.type==="income")inc+=r.amount;if(r.type==="expense"){exp+=r.amount;sp[r.category]=(sp[r.category]||0)+r.amount;}});
-$("#net").textContent=fmt(ast+dbt)+" "+cur;$("#ast").textContent=fmt(ast);$("#dbt").textContent=fmt(-dbt);$("#inc").textContent=fmt(inc);$("#exp").textContent=fmt(exp);
+$("#net").textContent=fmt(ast+dbt)+" "+cur;$("#ast").textContent=fmt(ast);$("#dbt").textContent=fmt(-dbt);$("#inc").textContent=fmt(inc);$("#exp").textContent=fmt(exp);$("#cashflow").innerHTML=bars();
 $("#cats").innerHTML=Object.entries(sp).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<li><span>${esc(c)}${bar(v/exp*100)}</span><b>${fmt(v)}</b></li>`).join("")||"<li>No spending this month yet.</li>";
 const loose=D.accounts.some(a=>!D.institutions.some(i=>i.id===a.instId));
 $("#insts").innerHTML=[...D.institutions,...(loose?[{id:"",name:"Unassigned",kind:"Older accounts"}]:[])].map(i=>{const l=D.accounts.filter(a=>i.id?a.instId===i.id:!D.institutions.some(x=>x.id===a.instId));return`<h4 ${i.id?`data-i="${i.id}"`:""}>${esc(i.name)}<small>${esc(i.kind)}, ${fmt(l.reduce((s,a)=>s+a.balance,0))}</small></h4><div class="tiles">${l.map(a=>`<div class="tile" data-a="${a.id}"><small>${esc(a.name)}</small><b class="${a.balance<0?"expense":""}">${a.balance<0?"-":""}${cur} ${fmt(Math.abs(a.balance))}</b></div>`).join("")}${i.id?`<div class="tile new" data-n="${i.id}">+ Add account</div>`:""}</div>`}).join("")||"<p class='hint'>Add an institution first, such as a bank, mobile banking or insurance provider.</p>";
@@ -189,4 +205,4 @@ let hid=0;document.addEventListener("visibilitychange",()=>{if(document.hidden)h
 document.onclick=e=>{const el=e.target.closest("[data-id],[data-s],[data-b],[data-a],[data-e],[data-n],[data-r],[data-i],[data-c],[data-g],[data-gd],[data-p],[data-dd]"),d=el?el.dataset:{},r=D.records.find(x=>x.id===d.id);
 if(r&&confirm("Delete this record? The balance will be restored."))apply(r,-1,t=>t.delete(uref("records",r.id))).then(()=>toast("Record deleted.",()=>{const{id,...x}=r;apply(x,1,t=>t.set(uref("records",id),x)).catch(bad)})).catch(bad);
 if(d.s&&confirm("Delete this schedule?"))deleteDoc(uref("scheduled",d.s)).catch(bad);else if(d.e)editSch(D.scheduled.find(x=>x.id===d.e));
-if(d.b)deleteDoc(uref("budgets",d.b)).catch(bad);if(d.c&&confirm("Delete this category? Existing records keep its name."))deleteDoc(uref("categories",d.c)).catch(bad);if(d.g)bump("goals",d.g,"saved",()=>Infinity,"Amount to add to this goal:");if(d.p)bump("debts",d.p,"paid",x=>x.amount,"Payment amount received or paid:");if(d.gd&&confirm("Delete this goal?"))deleteDoc(uref("goals",d.gd)).catch(bad);if(d.dd&&confirm("Delete this entry?"))deleteDoc(uref("debts",d.dd)).catch(bad);if(d.r)editRec(D.records.find(x=>x.id===d.r));if(d.i)editInst(d.i);if(d.n)newAcc(d.n);if(d.a)editAcc(D.accounts.find(x=>x.id===d.a));};
+if(d.b)deleteDoc(uref("budgets",d.b)).catch(bad);if(d.c&&confirm("Delete this category? Existing records keep its name."))deleteDoc(uref("categories",d.c)).catch(bad);if(d.g)bump("goals",d.g,"saved",x=>x.target,"Amount to add to this goal:");if(d.p)bump("debts",d.p,"paid",x=>x.amount,"Payment amount received or paid:");if(d.gd&&confirm("Delete this goal?"))deleteDoc(uref("goals",d.gd)).catch(bad);if(d.dd&&confirm("Delete this entry?"))deleteDoc(uref("debts",d.dd)).catch(bad);if(d.r)editRec(D.records.find(x=>x.id===d.r));if(d.i)editInst(d.i);if(d.n)newAcc(d.n);if(d.a)editAcc(D.accounts.find(x=>x.id===d.a));};
