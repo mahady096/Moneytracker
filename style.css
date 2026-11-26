@@ -61,3 +61,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline-offset:3px
  header .hbtn{flex-wrap:wrap;justify-content:flex-end}
 }
 @media(max-width:390px){header .hbtn{gap:4px}header button{font-size:.68rem;padding:7px 8px}}
+
+/* Money Tracker 1.2 — smart finance progress and record filters */
+.filter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+.filter-grid button{margin:0;min-height:42px}
+.progress-item>span{min-width:0}
+.progress-item strong{display:block;font-size:.94rem}
+.progress-item small{margin-top:3px}
+.progress-item .bar{margin:8px 0 5px}
+#reminders li{background:color-mix(in srgb,var(--bad) 5%,var(--card));padding:12px;border:1px solid color-mix(in srgb,var(--bad) 18%,var(--bd));border-radius:12px;margin:7px 0}
+#reminders li button{color:var(--ac)}
+@media(max-width:560px){.filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

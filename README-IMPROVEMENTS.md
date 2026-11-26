@@ -55,3 +55,11 @@ If the actual project ID shown in Firebase Console is different, use that exact 
 
 ## Data preservation
 This source update does not rename collections, change document IDs, migrate user records, or delete existing user data. The new Firestore constraints apply to future writes after rules deployment. Before deploying rules to production, test them with a disposable account and inspect any legacy debt or goal records that may already exceed their stated totals.
+
+
+## Version 1.2.0
+- Added richer transaction filtering and search.
+- Added clear monthly budget and savings-goal progress.
+- Added dashboard reminders for overdue schedules and schedules due within 7 days.
+- Kept the existing Firestore data model and IDs intact.
+- Reminder limitation: the app does not send push notifications while closed; scheduled processing still runs on app open.

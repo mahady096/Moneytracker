@@ -35,3 +35,12 @@ See `privacy.html`. Users can export a backup and delete their account and data 
 - Test the rules against a disposable account and existing data before production deployment.
 - The app's scheduled payments still execute when the app is opened; this is not a server-side background scheduler.
 - Google sign-in must be tested on the actual Android TWA build and the deployed Firebase Authorized Domains must include the app hostname.
+
+
+## Version 1.2.0 — Smart Finance
+- Transaction search and filters: account, type, category and date range.
+- Monthly budget progress with remaining and overspent amounts.
+- Savings-goal progress with completion percentage and remaining target.
+- Dashboard reminders for scheduled payments that are overdue or due within the next 7 days. Reminders are in-app only; scheduled transactions are still processed when the app opens, not by a server-side background job.
+
+This update preserves the existing Firestore collection names and document IDs. It does not run a data migration.
