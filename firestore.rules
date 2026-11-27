@@ -1,36 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'admin.moneytracker@gmail.com'
-        && request.auth.token.email_verified == true;
-    }
     function signedInAs(uid) {
-      return request.auth != null
-        && request.auth.uid == uid
-        && (!exists(/databases/$(database)/documents/users/$(uid))
-          || get(/databases/$(database)/documents/users/$(uid)).data.blocked != true);
+      return request.auth != null && request.auth.uid == uid;
     }
-
-    // User profile documents: users can manage their own basic profile;
-    // the designated verified administrator can list users and manage status.
     match /users/{uid} {
-      allow get: if (request.auth != null && request.auth.uid == uid) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if signedInAs(uid)
-        && request.resource.data.keys().hasOnly(['currency', 'onboarded', 'email'])
-        && request.resource.data.currency is string
-        && request.resource.data.onboarded == true
-        && (!('email' in request.resource.data) || request.resource.data.email is string);
-      allow update: if (isAdmin()
-          && uid != request.auth.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['blocked', 'blockedAt', 'blockedBy'])
-          && request.resource.data.blocked is bool
-          && request.resource.data.blockedBy == request.auth.uid)
-        || (signedInAs(uid)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currency', 'onboarded', 'email']));
-      allow delete: if signedInAs(uid);
+      allow read, write: if signedInAs(uid);
+
 
       match /cloudBackups/{backupId} {
         allow read, write: if signedInAs(uid);
@@ -100,54 +76,6 @@ service cloud.firestore {
           && request.resource.data.type in ['income', 'expense', 'transfer']
           && request.resource.data.accountId is string
           && request.resource.data.date is timestamp;
-      }
-    }
-
-    // Public-facing sponsored content; only the verified admin can publish/manage.
-    match /publicAds/{adId} {
-      allow read: if request.auth != null;
-      allow create: if isAdmin()
-        && request.resource.data.title is string
-        && request.resource.data.title.size() > 0
-        && request.resource.data.title.size() <= 100
-        && request.resource.data.body is string
-        && request.resource.data.body.size() <= 500
-        && request.resource.data.active == true
-        && (!('startDate' in request.resource.data) || request.resource.data.startDate is string)
-        && (!('endDate' in request.resource.data) || request.resource.data.endDate is string);
-      allow update, delete: if isAdmin();
-    }
-    match /publicNotices/{noticeId} {
-      allow read: if request.auth != null;
-      allow create: if isAdmin()
-        && request.resource.data.text is string
-        && request.resource.data.text.size() > 0
-        && request.resource.data.text.size() <= 240
-        && request.resource.data.level in ['normal', 'important', 'urgent']
-        && request.resource.data.active == true
-        && (!('startDate' in request.resource.data) || request.resource.data.startDate is string)
-        && (!('endDate' in request.resource.data) || request.resource.data.endDate is string);
-      allow update, delete: if isAdmin();
-    }
-
-    // One private support thread per user, with a messages subcollection.
-    match /supportThreads/{uid} {
-      allow create: if signedInAs(uid)
-        && request.resource.data.uid == uid;
-      allow get, list: if signedInAs(uid) || isAdmin();
-      allow update: if isAdmin()
-        || (signedInAs(uid)
-          && request.resource.data.uid == uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt', 'lastMessage', 'status']));
-      allow delete: if isAdmin();
-      match /messages/{messageId} {
-        allow read: if signedInAs(uid) || isAdmin();
-        allow create: if (signedInAs(uid) || isAdmin())
-          && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
-          && request.resource.data.text.size() <= 2000
-          && request.resource.data.senderUid == request.auth.uid;
-        allow update, delete: if isAdmin();
       }
     }
   }

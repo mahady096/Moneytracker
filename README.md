@@ -1,6 +1,6 @@
 # Money Tracker
 
-**Current development release:** 2.1.0 (Admin tools, sponsored content, notices and support chat; release candidate, not production-certified)
+**Current development release:** 2.0.0 (Cloud backup + Smart Financial Insights; release candidate, not production-certified)
 
 A personal finance web app and installable PWA: institutions and accounts, income/expense/transfer records, scheduled payments, budgets, savings goals, lend/borrow tracking, charts and reports, backup/restore, PIN lock.
 
@@ -73,31 +73,3 @@ A true conversational generative AI assistant is not enabled in this build. It r
 
 ### Release status
 This is a source development build. Before public release, test sign-in, Firestore rules, manual/automatic backup, restore on a test account, offline behavior, and Android Trusted Web Activity. A new Android APK/AAB must be built and signed with the original signing key to preserve update compatibility. The package association remains `com.app.moneytracker`; the web-only source changes do not themselves produce a new APK.
-
-## Admin account setup for 2.1.1
-1. Ensure `admin.moneytracker@gmail.com` is controlled by the app owner.
-2. Create that account in Firebase Authentication (or sign in if it already exists).
-3. Verify the email address using the Firebase verification email. The Admin tab is only enabled for this exact verified email.
-4. Deploy the updated `firestore.rules` to project `moneytrack-c5787` before using Admin, ads, notices or support chat.
-5. Sign in again after verifying the email. Do not grant administrator access by editing client-side JavaScript or by changing a profile document.
-
-The Admin tab can list user profile documents and block/unblock users. A blocked user's access to user-owned Firestore collections is denied by the rules. The app's user profile document stores only basic profile fields and an optional blocked flag; it does not expose another user's financial records to the admin UI.
-
-## Version 2.1.1 — Admin and communication features
-- Added a verified-email administrator role for `admin.moneytracker@gmail.com`.
-- Added user listing and account block/unblock controls.
-- Added admin-managed sponsored advertisements and scrolling notices, including optional start/end dates.
-- Added private user-to-admin support conversations.
-- Hardened Firestore rules for verified-email admin management, owner/admin-scoped support messages, and server-enforced blocked-account restrictions.
-- Existing financial collections and document IDs remain unchanged.
-- The admin account must first exist in Firebase Authentication and have a verified email. Deploy the updated Firestore rules before using these features.
-- This source package has passed JavaScript syntax and archive-integrity checks only. It still requires deployment and live Firebase testing; do not treat static checks as production certification.
-
-
-### 2.1.1 security and release notes
-- The sole administrator is the Firebase Authentication account `admin.moneytracker@gmail.com` with a verified email. Firestore Security Rules verify the signed Firebase token; the email check in the UI is only for showing the Admin tab.
-- User profile documents contain only basic account settings and block status. Admin updates are restricted to block metadata and cannot change a user's financial records.
-- A blocked user's reads and writes to their user-owned data and support thread are denied by Firestore rules.
-- Ads and notices support optional start/end dates (inclusive, based on the user's local calendar date). Leave both dates blank for immediate, ongoing publication.
-- Before deployment, publish `firestore.rules` to the existing `moneytrack-c5787` Firebase project. Do not delete or recreate Firestore collections.
-- This is a web-source update. It does not include a newly signed Android APK/AAB. Keep the existing package ID and original signing key for any future native release.
