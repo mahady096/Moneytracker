@@ -73,3 +73,10 @@ A true conversational generative AI assistant is not enabled in this build. It r
 
 ### Release status
 This is a source development build. Before public release, test sign-in, Firestore rules, manual/automatic backup, restore on a test account, offline behavior, and Android Trusted Web Activity. A new Android APK/AAB must be built and signed with the original signing key to preserve update compatibility. The package association remains `com.app.moneytracker`; the web-only source changes do not themselves produce a new APK.
+
+
+## Admin dashboard
+1. Publish `firestore.rules`.
+2. Sign in to the app once with the admin account and copy its User UID from Firebase Console > Authentication > Users.
+3. In Firestore create collection `admins` with a document whose ID is that UID (any field, for example `role: "admin"`).
+4. Open `/admin.html` and sign in. Only accounts listed in `admins` can edit the notice and slides or read messages.

@@ -47,3 +47,12 @@ No Firestore collection names, document IDs or existing user records are changed
 - Added Firestore rules for owner-only cloud backup metadata and chunks.
 
 Note: This development build does not yet include a connected generative AI service. The Smart Financial Insights feature is deterministic and runs from the user's existing app data. A true conversational AI service requires a separately configured server-side provider key and backend endpoint.
+
+
+## Version 2.2.0
+- Automatic cloud backup is now weekly and keeps the 4 newest backups (fewer Firestore reads, writes and storage).
+- Overdue scheduled payments are also processed when the app returns to the foreground (at most once per minute).
+- Added admin dashboard (`admin.html`): scrolling notice, swipeable highlight slides and a message inbox with replies.
+- Users can send messages to the admin from Settings and see replies. This is in-app messaging, not carrier SMS.
+- New Firestore collections: `admins` (managed manually in the console), `site` (one `config` document), `messages`. Rules updated; publish them before using these features.
+- Privacy policy updated. Service-worker cache namespace is now `mw-v8`.
