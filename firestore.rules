@@ -7,6 +7,13 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, write: if signedInAs(uid);
 
+
+      match /cloudBackups/{backupId} {
+        allow read, write: if signedInAs(uid);
+        match /chunks/{chunkId} {
+          allow read, write: if signedInAs(uid);
+        }
+      }
       match /institutions/{id} {
         allow read, delete: if signedInAs(uid);
         allow create, update: if signedInAs(uid)

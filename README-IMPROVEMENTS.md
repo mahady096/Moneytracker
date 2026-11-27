@@ -63,3 +63,11 @@ This source update does not rename collections, change document IDs, migrate use
 - Added dashboard reminders for overdue schedules and schedules due within 7 days.
 - Kept the existing Firestore data model and IDs intact.
 - Reminder limitation: the app does not send push notifications while closed; scheduled processing still runs on app open.
+
+
+## Version 1.3.0
+- Monthly and yearly financial reports with income, expense, net cash flow and saving-rate summaries.
+- Category-level analysis, yearly monthly cash-flow detail and budget performance.
+- CSV export for the selected report period, alongside all-record CSV.
+- Standalone HTML report and browser Print / Save as PDF.
+- Existing JSON backup and restore retained; no user data migration.

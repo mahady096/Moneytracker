@@ -8,16 +8,16 @@ const fmt=n=>(n/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFr
 const localDate=(d=new Date())=>{const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`},monthKey=(d=new Date())=>localDate(d).slice(0,7);
 const KINDS=["Bank","Mobile banking","Stock market","Insurance","Cash","Other"],TYPES=["Savings","Current","DPS (recurring deposit)","Fixed deposit","Mobile wallet (MFS)","Investment","Insurance","Loan","Credit card","Cash"],DEBT=["Loan","Credit card"];
 const CATS=["Food","Transport","Bills","Rent","Shopping","Health","Education","Entertainment","Savings","Salary","Other"],EXTRA=["categories","debts","goals"],bad=e=>alert(e.message||e);
-let back=12,recSub=null,lim=50,fr=[],ea=null,es=null,uid,cur="BDT",D={institutions:[],accounts:[],records:[],scheduled:[],budgets:[],categories:[],debts:[],goals:[]},L={},subs=[],due=0;
+let back=12,recSub=null,lim=50,fr=[],ea=null,es=null,uid,cur="BDT",D={institutions:[],accounts:[],records:[],scheduled:[],budgets:[],categories:[],debts:[],goals:[]},L={},subs=[],due=0,autoBackupStarted=false;
 const show=id=>["auth","onboard","app"].forEach(s=>$("#"+s).hidden=s!==id);
 const uref=(...p)=>doc(db,"users",uid,...p),ucol=n=>collection(db,"users",uid,n),add=(n,d)=>addDoc(ucol(n),{...d,createdAt:serverTimestamp()}).catch(bad);
 const cred=()=>[auth,$("#email").value.trim(),$("#pass").value],err=e=>$("#err").textContent=e.message;
 $("#login").onclick=()=>si(...cred()).catch(err);$("#signup").onclick=()=>su(...cred()).catch(err);
 $("#google").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(err);$("#out").onclick=()=>signOut(auth);
-onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;if(!u)return show("auth");uid=u.uid;try{const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();lock();}catch(e){show("auth");err(e)}});
+onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;autoBackupStarted=false;if(!u)return show("auth");uid=u.uid;try{const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();lock();}catch(e){show("auth");err(e)}});
 $("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT";await setDoc(uref(),{currency:cur,onboarded:true});run();tab("acc");}catch(e){bad(e)}};
 const sub=(n,q)=>subs.push(onSnapshot(q||ucol(n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));L[n]=1;draw();}));
-function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets","categories","debts","goals"].forEach(n=>sub(n));subRec();}
+function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets","categories","debts","goals"].forEach(n=>sub(n));subRec();autoBackupStarted=false;setTimeout(()=>maybeAutoCloudBackup(),5000);}
 function subRec(){recSub&&recSub();const d=new Date(),from=new Date(d.getFullYear(),d.getMonth()-back+1,1);recSub=onSnapshot(query(ucol("records"),where("date",">=",Timestamp.fromDate(from)),orderBy("date","desc")),s=>{D.records=s.docs.map(x=>({id:x.id,...x.data()}));L.records=1;draw()});subs.push(recSub)}
 const themeModes=["auto","light","dark"];
 function applyTheme(mode){
@@ -69,7 +69,22 @@ $("#upc").innerHTML=D.scheduled.filter(s=>left(s)!==0).sort((a,b)=>a.next<b.next
 $("#goals").innerHTML=D.goals.map(g=>{const pct=Math.round(g.saved/g.target*100),remaining=Math.max(0,g.target-g.saved);return`<li class="progress-item"><span><strong>${esc(g.name)}</strong><small>${fmt(g.saved)} saved of ${fmt(g.target)} · ${pct}%</small>${bar(g.saved/g.target*100)}<small>${remaining?fmt(remaining)+" to go":"Goal completed 🎉"}</small><small>Tap the progress area to add savings</small></span><button class="alt" data-gd="${g.id}" aria-label="Delete goal">×</button></li>`}).join("")||"<li>No goals yet.</li>";
 let rc=0,ow=0;D.debts.forEach(d=>{const rm=d.amount-d.paid;d.dir==="lent"?rc+=rm:ow+=rm});
 $("#debts").innerHTML=`<li><span>You will receive<small>People who owe you</small></span><b class="income">${fmt(rc)}</b></li><li><span>You owe<small>Money you must pay back</small></span><b class="expense">${fmt(ow)}</b></li>`+D.debts.map(d=>`<li data-p="${d.id}"><span>${esc(d.person)}${bar(d.paid/d.amount*100)}<small>${d.dir==="lent"?"Lent":"Borrowed"}, ${fmt(d.paid)} of ${fmt(d.amount)} settled${d.note?", "+esc(d.note):""}. Tap to record a payment</small></span><button class="alt" data-dd="${d.id}" aria-label="Delete">×</button></li>`).join("");
-drawRep();}
+drawSmartInsights();drawRep();}
+function drawSmartInsights(){
+ const now=new Date(),m=monthKey(),prev=new Date(now.getFullYear(),now.getMonth()-1,1),pm=monthKey(prev);
+ let income=0,expense=0,prevExpense=0;const categories={};
+ D.records.forEach(r=>{const k=day(r).slice(0,7);if(k===m&&r.type==="income")income+=r.amount;if(k===m&&r.type==="expense"){expense+=r.amount;categories[r.category||"Other"]=(categories[r.category||"Other"]||0)+r.amount;}if(k===pm&&r.type==="expense")prevExpense+=r.amount;});
+ const top=Object.entries(categories).sort((a,b)=>b[1]-a[1])[0],over=D.budgets.filter(b=>{const used=b.cat==="Total"?expense:categories[b.cat]||0;return used>=b.limit;});
+ const tips=[];
+ if(!D.records.length)tips.push("Add your first income or expense to unlock useful financial insights.");
+ else if(income===0&&expense>0)tips.push("No income has been recorded this month. Add any missing income to get a clearer cash-flow picture.");
+ else if(income>0&&expense>income)tips.push("Your recorded expenses are higher than income this month. Review non-essential spending and upcoming payments.");
+ else if(income>0)tips.push(`Your recorded savings this month are ${fmt(Math.max(0,income-expense))} (${Math.round((income-expense)/income*100)}% of income).`);
+ if(top)tips.push(`${top[0]} is your highest recorded spending category this month (${fmt(top[1])}).`);
+ if(over.length)tips.push(`${over.length} budget${over.length>1?"s are":" is"} at or above the limit. Review the Plan tab.`);
+ else if(prevExpense>0&&expense>0)tips.push(expense<prevExpense?`Spending is ${Math.round((prevExpense-expense)/prevExpense*100)}% lower than last month so far.`:`Spending is ${Math.round((expense-prevExpense)/prevExpense*100)}% higher than last month so far.`);
+ $("#insights").innerHTML=tips.map(t=>`<li>${esc(t)}</li>`).join("")||"<li>Insights will appear as your financial activity grows.</li>";
+}
 const eff=r=>r.type==="income"?r.amount:-r.amount;
 async function apply(r,sign,fn){await runTransaction(db,async t=>{
 const s=await Promise.all([r.accountId,...(r.type==="transfer"?[r.toAccountId]:[])].map(i=>t.get(uref("accounts",i))));
@@ -131,21 +146,48 @@ $("#rcancel").onclick=endRec;const refreshRecordFilters=()=>{lim=50;draw()};
 ["rsearch","rfil","rtype","rcatfil","rfromdate","rtodate"].forEach(id=>$("#"+id).addEventListener(id==="rsearch"?"input":"change",refreshRecordFilters));
 $("#rreset").onclick=()=>{["rsearch","rfil","rtype","rcatfil","rfromdate","rtodate"].forEach(id=>$("#"+id).value="");refreshRecordFilters()};
 function editInst(id){const i=D.institutions.find(x=>x.id===id),n=prompt("Rename this institution. Leave empty to delete it (only possible when it has no accounts).",i.name);if(n===null)return;if(n.trim())return updateDoc(uref("institutions",id),{name:n.trim()}).catch(bad);if(D.accounts.some(a=>a.instId===id))return alert("Move or delete its accounts first.");deleteDoc(uref("institutions",id)).catch(bad)}
-function drawRep(){const m=$("#rmonth").value||(($("#rmonth").value=monthKey()));const A=D.accounts,sm=l=>l.reduce((s,a)=>s+a.balance,0),I={},X={};let ti=0,te=0;
-D.records.forEach(r=>{if(day(r).slice(0,7)!==m||r.type==="transfer")return;const o=r.type==="income"?I:X;o[r.category]=(o[r.category]||0)+r.amount;r.type==="income"?ti+=r.amount:te+=r.amount});
-const li=(a,b,c,x)=>`<li><span>${a}${c?`<small>${c}</small>`:""}</span><b class="${x||""}">${b}</b></li>`,H=t=>`<h3>${t}</h3>`,nl=o=>Object.entries(o).map(([k,v])=>li(esc(k),fmt(v))).join("");
-const pr=a=>{const s=D.scheduled.find(x=>x.toId===a.id);return s?esc(s.freq)+" "+fmt(s.amount)+", "+sline(s):""};
-const dep=A.filter(a=>["Savings","Current","DPS (recurring deposit)","Fixed deposit"].includes(a.type)),ln=A.filter(a=>DEBT.includes(a.type));
-const ast=A.reduce((s,a)=>a.balance>0?s+a.balance:s,0),dbt=sm(A)-ast;
-$("#rep").innerHTML=H("Charts")+charts(X)+H("Total summary")+`<ul>${li("Assets",fmt(ast))}${li("Debts",fmt(-dbt),"","expense")}${li("Net worth",fmt(ast+dbt),"","tot")}${li("Deposits",fmt(sm(dep)))}${li("Accounts",A.length)}${li("Institutions",D.institutions.length)}</ul>`
-+H("By institution")+`<ul>${D.institutions.map(i=>{const l=A.filter(a=>a.instId===i.id);return li(esc(i.name),fmt(sm(l)),esc(i.kind)+", "+l.length+" accounts")}).join("")}</ul>`
-+H("By account")+`<ul>${A.map(a=>li(esc(nameOf(a.id)),fmt(a.balance),esc(a.type||"")+(a.num?", "+esc(a.num):""),a.balance<0?"expense":"")).join("")}</ul>`
-+H("Deposit summary")+`<ul>${dep.map(a=>li(esc(a.name),fmt(a.balance),esc(a.type)+(pr(a)?", "+pr(a):""))).join("")||"<li>No deposit accounts.</li>"}</ul>`
-+H("Loan and credit card summary")+`<ul>${ln.map(a=>li(esc(a.name),fmt(-a.balance),esc(a.type)+(pr(a)?", "+pr(a):""),"expense")).join("")||"<li>No loans or cards.</li>"}</ul>`
-+H("Income and expense, "+m)+`<ul>${nl(I)}${li("Total income",fmt(ti),"","income")}${nl(X)}${li("Total expense",fmt(te),"","expense")}${li("Net saving",fmt(ti-te),ti?Math.round((ti-te)/ti*100)+"% of income":"","tot")}</ul>`
-+H("Budget summary, "+m)+`<ul>${D.budgets.map(b=>{const v=b.cat==="Total"?te:X[b.cat]||0;return li(esc(b.cat)+bar(v/b.limit*100,v>b.limit),fmt(b.limit-v),fmt(v)+" of "+fmt(b.limit)+(v>b.limit?", over budget":", left"),v>b.limit?"expense":"")}).join("")||"<li>No budgets set.</li>"}</ul>`;}
-$("#rmonth").onchange=()=>{const[y,mo]=$("#rmonth").value.split("-").map(Number),n=new Date(),need=(n.getFullYear()-y)*12+n.getMonth()+2-mo;if(need>back){back=need;subRec()}drawRep()};
-$("#csv").onclick=async()=>{const all=(await getDocs(query(ucol("records"),orderBy("date","desc")))).docs.map(d=>({id:d.id,...d.data()})),q=c=>'"'+String(c).replace(/"/g,'""')+'"',rows=[["date","type","category","account","to","amount","note"],...all.map(r=>[day(r),r.type,r.category,nameOf(r.accountId),r.toAccountId?nameOf(r.toAccountId):"",r.amount/100,r.note||""])],a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv"}));a.download="records.csv";a.click()};
+function reportRange(){
+ const mode=$("#rperiod").value||"month";
+ if(mode==="year"){
+  const y=Math.max(2000,Math.min(2100,Number($("#ryear").value)||new Date().getFullYear()));
+  $("#ryear").value=y;
+  return {mode,key:String(y),label:String(y),start:`${y}-01-01`,end:`${y}-12-31`,year:y};
+ }
+ const m=$("#rmonth").value||monthKey();$("#rmonth").value=m;
+ const [y,mo]=m.split("-").map(Number),last=new Date(y,mo,0).getDate();
+ return {mode,key:m,label:m,start:`${m}-01`,end:`${m}-${String(last).padStart(2,"0")}`,year:y};
+}
+function drawRep(){
+ const range=reportRange();
+ const need=(new Date().getFullYear()-range.year)*12+new Date().getMonth()+2-(range.mode==="month"?Number(range.key.slice(5)):1);
+ if(need>back){back=need;subRec();}
+ const A=D.accounts,sm=l=>l.reduce((s,a)=>s+a.balance,0),I={},X={},byMonth={};let ti=0,te=0;
+ const selected=D.records.filter(r=>{const d=day(r);return d>=range.start&&d<=range.end&&r.type!=="transfer"});
+ selected.forEach(r=>{const o=r.type==="income"?I:X;o[r.category]=(o[r.category]||0)+r.amount;if(r.type==="income")ti+=r.amount;else te+=r.amount;const k=day(r).slice(0,7);if(!byMonth[k])byMonth[k]={income:0,expense:0};byMonth[k][r.type]+=r.amount});
+ const li=(a,b,c,x)=>`<li><span>${a}${c?`<small>${c}</small>`:""}</span><b class="${x||""}">${b}</b></li>`,H=t=>`<h3>${t}</h3>`,nl=o=>Object.entries(o).sort((a,b)=>b[1]-a[1]).map(([k,v])=>li(esc(k),fmt(v))).join("");
+ const pr=a=>{const z=D.scheduled.find(x=>x.toId===a.id);return z?esc(z.freq)+" "+fmt(z.amount)+", "+sline(z):""};
+ const dep=A.filter(a=>["Savings","Current","DPS (recurring deposit)","Fixed deposit"].includes(a.type)),ln=A.filter(a=>DEBT.includes(a.type));
+ const ast=A.reduce((s,a)=>a.balance>0?s+a.balance:s,0),dbt=sm(A)-ast,net=ti-te,rate=ti?Math.round(net/ti*100):0;
+ const catRows=Object.entries(X).sort((a,b)=>b[1]-a[1]);
+ const trend=range.mode==="year"?Object.entries(byMonth).sort((a,b)=>a[0].localeCompare(b[0])).map(([k,v])=>li(esc(k),fmt(v.income-v.expense),`Income ${fmt(v.income)} · Expense ${fmt(v.expense)}`,v.income>=v.expense?"income":"expense")).join(""):"";
+ $("#rep").innerHTML=`<div class="report-title"><p class="eyebrow">MONEY TRACKER · FINANCIAL SUMMARY</p><h2>${range.mode==="year"?"Yearly":"Monthly"} report · ${esc(range.label)}</h2><p class="hint">${selected.length} income / expense transactions included · ${cur}</p></div>`
+ +H("Income and expense overview")+`<div class="report-kpis"><div><small>Total income</small><b class="income">${fmt(ti)}</b></div><div><small>Total expenses</small><b class="expense">${fmt(te)}</b></div><div><small>Net cash flow</small><b class="${net>=0?"income":"expense"}">${fmt(net)}</b></div><div><small>Saving rate</small><b>${rate}%</b></div></div>`
+ +H("Expense by category")+donut(catRows)
+ +(range.mode==="year"?H("Monthly cash flow")+`<ul>${trend||"<li>No transactions in this year.</li>"}</ul>`:"")
+ +H("Income by category")+`<ul>${nl(I)||"<li>No income in this period.</li>"}</ul>`
+ +H("Expense by category details")+`<ul>${nl(X)||"<li>No expenses in this period.</li>"}</ul>`
+ +H("Budget performance")+`<ul>${D.budgets.map(b=>{const v=b.cat==="Total"?te:X[b.cat]||0,remain=b.limit-v;return li(esc(b.cat)+bar(v/b.limit*100,v>b.limit),fmt(remain),`${fmt(v)} spent of ${fmt(b.limit)} · ${Math.round(v/b.limit*100)}% used${v>b.limit?" · over budget":" remaining"}`,v>b.limit?"expense":"")}).join("")||"<li>No budgets set.</li>"}</ul>`
+ +H("Current account snapshot")+`<p class="hint">Balances below are current balances, not historical balances for the selected report period.</p><ul>${li("Assets",fmt(ast))}${li("Debts",fmt(-dbt),"","expense")}${li("Current net worth",fmt(ast+dbt),"","tot")}${li("Deposits",fmt(sm(dep)))}${li("Accounts",A.length)}${li("Institutions",D.institutions.length)}</ul>`
+ +H("By institution")+`<ul>${D.institutions.map(i=>{const l=A.filter(a=>a.instId===i.id);return li(esc(i.name),fmt(sm(l)),esc(i.kind)+", "+l.length+" accounts")}).join("")||"<li>No institutions.</li>"}</ul>`
+ +H("By account")+`<ul>${A.map(a=>li(esc(nameOf(a.id)),fmt(a.balance),esc(a.type||"")+(a.num?", "+esc(a.num):""),a.balance<0?"expense":"")).join("")||"<li>No accounts.</li>"}</ul>`
+ +H("Deposit summary")+`<ul>${dep.map(a=>li(esc(a.name),fmt(a.balance),esc(a.type)+(pr(a)?", "+pr(a):""))).join("")||"<li>No deposit accounts.</li>"}</ul>`
+ +H("Loan and credit card summary")+`<ul>${ln.map(a=>li(esc(a.name),fmt(-a.balance),esc(a.type)+(pr(a)?", "+pr(a):""),"expense")).join("")||"<li>No loans or cards.</li>"}</ul>`;
+}
+const refreshReport=()=>drawRep();
+$("#rperiod").onchange=()=>{const y=new Date().getFullYear();$("#rmonth").hidden=$("#rperiod").value==="year";$("#ryear").hidden=$("#rperiod").value!=="year";if($("#rperiod").value==="year")$("#ryear").value=y;refreshReport()};
+$("#rmonth").onchange=refreshReport;$("#ryear").onchange=refreshReport;
+$("#rcsv").onclick=()=>{const range=reportRange(),rows=[["period","type","category","account","to_account","amount","note"],...D.records.filter(r=>day(r)>=range.start&&day(r)<=range.end).map(r=>[day(r),r.type,r.category||"",nameOf(r.accountId),r.toAccountId?nameOf(r.toAccountId):"",r.amount/100,r.note||""])],q=c=>'"'+String(c).replace(/"/g,'""')+'"';dl(new Blob([rows.map(r=>r.map(q).join(",")).join("\n")],{type:"text/csv;charset=utf-8"}),`money-report-${range.key}.csv`)};
+
 function editAcc(a){ea=a.id;$("#ainst").value=a.instId||"";$("#atype").value=a.type||TYPES[0];$("#aname").value=a.name;$("#anum").value=a.num||"";$("#abal").value=Math.abs(a.balance)/100;$("#accForm").hidden=false;$("#addAcc").textContent="Update account";$("#acancel").hidden=$("#adel").hidden=false;scrollTo(0,0)}
 const endAcc=()=>{$("#accForm").hidden=true;ea=null;["aname","anum","abal"].forEach(i=>$("#"+i).value="");$("#addAcc").textContent="Add account";$("#acancel").hidden=$("#adel").hidden=true};
 function editSch(s){es=s.id;$("#sname").value=s.name;$("#samt").value=s.amount/100;$("#sfrom").value=s.fromId||"";$("#sto").value=s.toId||"";$("#scat").value=s.cat;$("#sfreq").value=s.freq;$("#sdate").value=s.next;$("#stotal").value=s.total||0;$("#sdone").value=s.done||0;$("#addSch").textContent="Update schedule";$("#scancel").hidden=false;scrollTo(0,0)}
@@ -154,9 +196,33 @@ $("#acancel").onclick=endAcc;
 $("#showInst").onclick=()=>$("#instForm").hidden=!$("#instForm").hidden;
 const newAcc=id=>{endAcc();$("#accForm").hidden=false;$("#ainst").value=id;scrollTo(0,0)};
 const dl=(b,n)=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=n;a.click()},NAMES=["institutions","accounts","scheduled","budgets","records"];
-$("#rdl").onclick=()=>dl(new Blob([`<!doctype html><meta charset=utf-8><title>Money report</title><style>body{font:15px system-ui;max-width:700px;margin:20px auto;padding:0 12px}ul{list-style:none;padding:0}li{display:flex;justify-content:space-between;border-bottom:1px solid #ddd;padding:6px 0}small{display:block;color:#666}.bar{display:none}.dn{display:flex;gap:12px}.dn svg{width:150px}svg.ch{max-width:100%}.sw{display:inline-block;width:10px;height:10px;margin:0 6px}.expense{color:#b42318}</style><h1>Money report, ${$("#rmonth").value}</h1>${$("#rep").innerHTML}`],{type:"text/html"}),"report-"+$("#rmonth").value+".html");
-$("#rpr").onclick=()=>print();
+$("#rdl").onclick=()=>{const range=reportRange();dl(new Blob([`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Money report ${range.label}</title><style>body{font:15px system-ui;max-width:760px;margin:24px auto;padding:0 16px;color:#172337}ul{list-style:none;padding:0}li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #ddd;padding:8px 0}small{display:block;color:#667085}.bar{display:none}.dn{display:flex;gap:12px;flex-wrap:wrap}.dn svg{width:150px}.sw{display:inline-block;width:10px;height:10px;margin:0 6px}.expense{color:#b42318}.income{color:#087f68}.report-kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.report-kpis>div{border:1px solid #ddd;border-radius:12px;padding:12px}.report-kpis small,.report-kpis b{display:block}</style><h1>Money Tracker</h1>${$("#rep").innerHTML}</html>`],{type:"text/html"}),`money-report-${range.key}.html`)};
+$("#rpr").onclick=()=>{const old=document.title,range=reportRange();document.title=`Money Tracker Report ${range.label}`;document.body.classList.add("print-report");const done=()=>{document.title=old;document.body.classList.remove("print-report");window.removeEventListener("afterprint",done)};window.addEventListener("afterprint",done,{once:true});print();setTimeout(done,30000)};
 $("#bak").onclick=async()=>{try{const j={app:"mywallet",currency:cur};for(const n of[...NAMES,...EXTRA])j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...Object.fromEntries(Object.entries(d.data()).map(([k,v])=>[k,v&&v.toDate?{__t:v.toDate().toISOString()}:v]))}));dl(new Blob([JSON.stringify(j)],{type:"application/json"}),"wallet-backup-"+localDate()+".json")}catch(e){bad(e)}};
+// Version 2.0 cloud backup: chunked documents stay below Firestore's 1 MiB document limit.
+const CLOUD_BACKUPS="cloudBackups",CLOUD_CHUNK_CHARS=450000;
+const encodeBackupValue=v=>v instanceof Timestamp?{__t:v.toDate().toISOString()}:Array.isArray(v)?v.map(encodeBackupValue):v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,encodeBackupValue(x)])):v;
+const decodeBackupValue=v=>Array.isArray(v)?v.map(decodeBackupValue):v&&typeof v==="object"?(typeof v.__t==="string"?Timestamp.fromDate(new Date(v.__t)):Object.fromEntries(Object.entries(v).map(([k,x])=>[k,decodeBackupValue(x)]))):v;
+async function collectBackup(){const j={app:"mywallet",schemaVersion:2,currency:cur,createdAtISO:new Date().toISOString()};for(const n of[...NAMES,...EXTRA])j[n]=(await getDocs(ucol(n))).docs.map(d=>({id:d.id,...encodeBackupValue(d.data())}));return j;}
+async function createCloudBackup(kind="manual"){
+ if(!uid||!navigator.onLine)throw new Error("Connect to the internet and sign in before creating a cloud backup.");
+ const data=JSON.stringify(await collectBackup()),parts=[];for(let i=0;i<data.length;i+=CLOUD_CHUNK_CHARS)parts.push(data.slice(i,i+CLOUD_CHUNK_CHARS));
+ const ref=doc(ucol(CLOUD_BACKUPS));await setDoc(ref,{status:"uploading",kind,chunkCount:parts.length,sizeBytes:new Blob([data]).size,createdAt:serverTimestamp(),createdAtMs:Date.now(),schemaVersion:2});
+ try{for(let i=0;i<parts.length;i+=400){const batch=writeBatch(db);parts.slice(i,i+400).forEach((part,j)=>batch.set(doc(collection(ref,"chunks"),String(i+j).padStart(6,"0")),{index:i+j,payload:part}));await batch.commit();}
+  await updateDoc(ref,{status:"complete",completedAt:serverTimestamp()});
+ }catch(e){try{await updateDoc(ref,{status:"failed",errorAt:serverTimestamp()})}catch(_){}throw e;}
+ try{await pruneCloudBackups()}catch(e){console.warn("Cloud backup retention cleanup could not finish",e)}return ref.id;
+}
+async function pruneCloudBackups(){const snap=await getDocs(query(ucol(CLOUD_BACKUPS),orderBy("createdAt","desc")));const old=snap.docs.filter(d=>d.data().status==="complete").slice(14);for(const d of old){const chunks=await getDocs(collection(d.ref,"chunks"));for(let i=0;i<chunks.docs.length;i+=400){const b=writeBatch(db);chunks.docs.slice(i,i+400).forEach(x=>b.delete(x.ref));await b.commit();}await deleteDoc(d.ref);}}
+async function maybeAutoCloudBackup(){if(autoBackupStarted||!uid||!navigator.onLine)return;autoBackupStarted=true;try{const latest=await getDocs(query(ucol(CLOUD_BACKUPS),orderBy("createdAt","desc"),limit(1)));const d=latest.docs[0]?.data();if(d?.status==="complete"&&Date.now()-(d.createdAtMs||0)<24*60*60*1000)return;const id=await createCloudBackup("automatic");$("#cloudStatus").textContent="Automatic cloud backup completed · "+new Date().toLocaleString();}catch(e){$("#cloudStatus").textContent="Automatic backup not completed: "+(e.message||"Please try again later.");} }
+window.addEventListener("online",()=>{autoBackupStarted=false;maybeAutoCloudBackup()});
+$("#cloudBackup").onclick=async()=>{const b=$("#cloudBackup");b.disabled=true;$("#cloudStatus").textContent="Creating cloud backup…";try{const id=await createCloudBackup("manual");$("#cloudStatus").textContent="Cloud backup completed successfully.";alert("Cloud backup completed.");}catch(e){bad(e);$("#cloudStatus").textContent="Cloud backup failed: "+(e.message||e);}finally{b.disabled=false;}};
+async function restoreLatestCloudBackup(){if(!uid||!navigator.onLine)return alert("Connect to the internet first.");const snap=await getDocs(query(ucol(CLOUD_BACKUPS),orderBy("createdAt","desc"),limit(20))),backup=snap.docs.find(d=>d.data().status==="complete");if(!backup)return alert("No completed cloud backup was found.");const meta=backup.data(),chunks=await getDocs(query(collection(backup.ref,"chunks"),orderBy("index")));if(chunks.size!==meta.chunkCount||chunks.docs.some((d,i)=>d.data().index!==i||typeof d.data().payload!=="string"))throw new Error("Cloud backup is incomplete. Your current data has not been changed.");const raw=chunks.docs.map(d=>d.data().payload).join(""),j=JSON.parse(raw),allowed=[...NAMES,...EXTRA];if(!j||j.app!=="mywallet"||!allowed.every(n=>Array.isArray(j[n])))throw new Error("Cloud backup validation failed. Your current data has not been changed.");
+ const jobs=[];for(const n of allowed)for(const x of j[n]){if(!x||typeof x.id!=="string"||!/^[A-Za-z0-9_-]{1,128}$/.test(x.id))throw new Error("Cloud backup contains an invalid item ID.");const{id,...rawData}=x;jobs.push({ref:uref(n,id),data:decodeBackupValue(rawData)});}
+ if(!confirm("Restore the latest cloud backup? Matching IDs will be overwritten; all existing items not present in this backup will remain. Your current data will not be deleted."))return;
+ for(let i=0;i<jobs.length;i+=450){const batch=writeBatch(db);jobs.slice(i,i+450).forEach(x=>batch.set(x.ref,x.data));await batch.commit();}if(typeof j.currency==="string"&&/^[A-Z]{3}$/.test(j.currency)){cur=j.currency;await setDoc(uref(),{currency:cur,onboarded:true},{merge:true});}alert("Cloud restore completed. Reloading your wallet.");location.reload();
+}
+$("#cloudRestore").onclick=()=>restoreLatestCloudBackup().catch(bad);
 $("#rbtn").onclick=()=>$("#restore").click();
 $("#restore").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
 const j=JSON.parse(await f.text()),allowed=["institutions","accounts","scheduled","budgets","records"];
@@ -196,7 +262,7 @@ $("#pwreset").onclick=()=>auth.currentUser?.email&&sendPasswordResetEmail(auth,a
 $("#setb").onclick=()=>tab("set");$("#more").onclick=()=>{if(fr.length>lim)lim+=50;else{back+=12;subRec()}draw()};
 $("#addCat").onclick=()=>{const n=$("#cname").value.trim();if(!n||cats().some(c=>c.toLowerCase()===n.toLowerCase()))return alert("Enter a new category name.");add("categories",{name:n}).then(()=>$("#cname").value="")};
 $("#delAll").onclick=async()=>{if(prompt("This permanently deletes your account and ALL your data. Type DELETE to confirm.")!=="DELETE")return;const u=auth.currentUser;if(Date.now()-new Date(u.metadata.lastSignInTime)>4*60*1000)return alert("For security, sign out, sign in again, then retry within a few minutes.");
-try{subs.forEach(f=>f());subs=[];for(const n of[...NAMES,...EXTRA]){const s=await getDocs(ucol(n));for(let i=0;i<s.docs.length;i+=450){const b=writeBatch(db);s.docs.slice(i,i+450).forEach(d=>b.delete(d.ref));await b.commit()}}await deleteDoc(uref());await deleteUser(u);alert("Your account and data were deleted.")}catch(e){bad(e)}};
+try{subs.forEach(f=>f());subs=[];const cloud=await getDocs(ucol(CLOUD_BACKUPS));for(const backup of cloud.docs){const chunks=await getDocs(collection(backup.ref,"chunks"));for(let i=0;i<chunks.docs.length;i+=400){const b=writeBatch(db);chunks.docs.slice(i,i+400).forEach(d=>b.delete(d.ref));await b.commit()}await deleteDoc(backup.ref)}for(const n of[...NAMES,...EXTRA]){const s=await getDocs(ucol(n));for(let i=0;i<s.docs.length;i+=450){const b=writeBatch(db);s.docs.slice(i,i+450).forEach(d=>b.delete(d.ref));await b.commit()}}await deleteDoc(uref());await deleteUser(u);alert("Your account and data were deleted.")}catch(e){bad(e)}};
 let tt;const toast=(m,undo)=>{const e=$("#toast");e.innerHTML=esc(m)+(undo?' <button id="undo">Undo</button>':"");e.hidden=false;if(undo)$("#undo").onclick=()=>{e.hidden=true;undo()};clearTimeout(tt);tt=setTimeout(()=>e.hidden=true,7000)};
 const bump=(col,id,field,cap,label)=>{const it=D[col].find(x=>x.id===id),v=cents(prompt(label));if(v<=0)return;updateDoc(uref(col,id),{[field]:Math.min(cap(it),it[field]+v)}).catch(bad)};
 $("#addGoal").onclick=()=>{const t=cents($("#gtarget").value),n=$("#gname").value.trim();if(!n||t<=0)return alert("Enter a goal name and a target amount.");add("goals",{name:n,target:t,saved:0}).then(()=>{$("#gname").value=$("#gtarget").value=""})};
