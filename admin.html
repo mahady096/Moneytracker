@@ -3,6 +3,7 @@
 <section id="login" hidden><input id="em" type="email" placeholder="Admin email" autocomplete="username"><input id="pw" type="password" placeholder="Password" autocomplete="current-password"><button id="go">Sign in</button><button id="gg" class="alt">Continue with Google</button></section>
 <section id="panel" hidden>
 <p><span id="who" class="hint"></span> <button id="so" class="alt" style="width:auto">Sign out</button> <a class="btn" href="/">Open app</a></p>
+<h3>Users <small id="ustat"></small></h3><button id="lu" class="alt">Load users</button><input id="uq" placeholder="Search by email or user ID"><ul id="ul"></ul><p class="hint">Block stops a user from using the app (it signs them out when they open it) and from sending messages. To disable or delete the sign-in account itself, use Firebase Console, Authentication. Only users who opened the latest app version are listed.</p>
 <h3>Scrolling notice</h3><textarea id="nt" rows="2" maxlength="300" placeholder="Notice text shown to every user"></textarea><label><input id="non" type="checkbox">Show notice</label>
 <h3>Slides (swipe banners)</h3><div id="sl"></div><button id="addsl" class="alt">+ Add slide</button><button id="save">Save notice and slides</button>
 <h3>Messages <small id="mc"></small></h3><ul id="inbox"></ul></section></main><script type="module" src="admin.js"></script></body></html>

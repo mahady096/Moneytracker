@@ -92,12 +92,23 @@ service cloud.firestore {
         && request.resource.data.notice is string && request.resource.data.notice.size() <= 300
         && request.resource.data.slides is list && request.resource.data.slides.size() <= 10;
     }
+    match /profiles/{id} {
+      allow get: if request.auth != null && (request.auth.uid == id || isAdmin());
+      allow list: if isAdmin();
+      allow create: if request.auth != null && request.auth.uid == id
+        && request.resource.data.keys().hasOnly(['email','createdAt','lastSeen','blocked','note','appVersion'])
+        && request.resource.data.blocked == false;
+      allow update: if (request.auth != null && request.auth.uid == id
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen','email','appVersion'])) || isAdmin();
+      allow delete: if (request.auth != null && request.auth.uid == id) || isAdmin();
+    }
     match /messages/{id} {
       allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
         && request.resource.data.status == 'new'
+        && !(exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.blocked == true)
         && request.resource.data.keys().hasOnly(['uid','email','text','status','createdAt']);
       allow update: if isAdmin();
       allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());

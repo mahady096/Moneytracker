@@ -56,3 +56,21 @@ Note: This development build does not yet include a connected generative AI serv
 - Users can send messages to the admin from Settings and see replies. This is in-app messaging, not carrier SMS.
 - New Firestore collections: `admins` (managed manually in the console), `site` (one `config` document), `messages`. Rules updated; publish them before using these features.
 - Privacy policy updated. Service-worker cache namespace is now `mw-v8`.
+
+
+## Version 2.3.0 (release candidate)
+- Redesigned the notice bar (pill with icon, soft edge fade, pause on touch) and highlight slides (gradient cards, tag, "Learn more", position dots).
+- Added an "Open admin dashboard" button in Settings, visible only to admins.
+- Added user management to the admin dashboard: list, search, activity stats, block/unblock, private notes. Blocked users are signed out by the app and cannot send messages (enforced in Firestore rules for messages; the sign-out is enforced by the app).
+- New collection `profiles` (email, join and last-seen dates, blocked flag, note). Created automatically when a user opens the app; deleted with the account.
+- Service-worker cache namespace is now `mw-v9`.
+
+
+## Version 2.4.0 (Firebase usage optimization)
+- Records now load the last 6 months by default (was 12); the Reports tab loads 12 months only when opened. "Load older records" and older report months still load on demand.
+- Per-session reads cut: profile (currency), announcements (6 h), account/admin check (6 h) and the cloud-backup check are cached on the device.
+- Automatic cloud backup is now every 14 days; last-seen is written at most once per 24 hours.
+- Messages list reloads at most once a minute; admin dashboard loads users on demand and uses smaller pages (50 messages, 100 users).
+- Firestore rules evaluate the user's own access before the admin lookup so normal users never trigger an extra rule read.
+- Block checks can take up to 6 hours to apply on a device that already opened the app.
+- Service-worker cache namespace is now `mw-v10`.
