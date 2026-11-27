@@ -1,7 +1,9 @@
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import{getAuth,onAuthStateChanged,signInWithEmailAndPassword as si,createUserWithEmailAndPassword as su,GoogleAuthProvider,signInWithPopup,signOut,sendPasswordResetEmail,deleteUser}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword as si,createUserWithEmailAndPassword as su,GoogleAuthProvider,signInWithPopup,signOut,sendPasswordResetEmail,sendEmailVerification,deleteUser}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import{initializeFirestore,persistentLocalCache,doc,getDoc,setDoc,addDoc,getDocs,updateDoc,deleteDoc,collection,query,orderBy,where,limit,onSnapshot,runTransaction,serverTimestamp,Timestamp,writeBatch}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import{firebaseConfig}from"./firebase-config.js";
+const ADMIN_EMAIL="admin.moneytracker@gmail.com";
+const isAdmin=()=>String(auth.currentUser?.email||"").toLowerCase()===ADMIN_EMAIL && auth.currentUser?.emailVerified===true;
 const app=initializeApp(firebaseConfig),auth=getAuth(app),db=initializeFirestore(app,{localCache:persistentLocalCache()});
 const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=n=>(n/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}),cents=v=>{const n=Number.parseFloat(v||0);if(!Number.isFinite(n))return 0;const c=Math.round(n*100);return Number.isSafeInteger(c)?c:0};
@@ -12,12 +14,77 @@ let back=12,recSub=null,lim=50,fr=[],ea=null,es=null,uid,cur="BDT",D={institutio
 const show=id=>["auth","onboard","app"].forEach(s=>$("#"+s).hidden=s!==id);
 const uref=(...p)=>doc(db,"users",uid,...p),ucol=n=>collection(db,"users",uid,n),add=(n,d)=>addDoc(ucol(n),{...d,createdAt:serverTimestamp()}).catch(bad);
 const cred=()=>[auth,$("#email").value.trim(),$("#pass").value],err=e=>$("#err").textContent=e.message;
-$("#login").onclick=()=>si(...cred()).catch(err);$("#signup").onclick=()=>su(...cred()).catch(err);
+$("#login").onclick=()=>si(...cred()).then(async c=>{if(c.user.email?.toLowerCase()===ADMIN_EMAIL&&!c.user.emailVerified){await sendEmailVerification(c.user);alert("Administrator verification email sent. Verify it, then sign out and sign in again.");}}).catch(err);$("#signup").onclick=()=>su(...cred()).then(async c=>{await sendEmailVerification(c.user);alert("Verification email sent. Verify your email, then sign in again.");}).catch(err);
 $("#google").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(err);$("#out").onclick=()=>signOut(auth);
-onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;autoBackupStarted=false;if(!u)return show("auth");uid=u.uid;try{const p=(await getDoc(uref())).data();if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();lock();}catch(e){show("auth");err(e)}});
-$("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT";await setDoc(uref(),{currency:cur,onboarded:true});run();tab("acc");}catch(e){bad(e)}};
+onAuthStateChanged(auth,async u=>{subs.forEach(f=>f());subs=[];L={};due=0;autoBackupStarted=false;stopAdminListeners();if(!u){show("auth");return;}uid=u.uid;try{const p=(await getDoc(uref())).data()||{};if(p.blocked===true){await signOut(auth);throw new Error("This account has been restricted. Contact the administrator.");}if(!p?.onboarded)return show("onboard");cur=p.currency||"BDT";run();lock();initCommunity();}catch(e){show("auth");err(e)}});
+$("#start").onclick=async()=>{try{cur=$("#cur").value.trim().toUpperCase()||"BDT";await setDoc(uref(),{currency:cur,onboarded:true,email:auth.currentUser.email||""});run();initCommunity();tab("acc");}catch(e){bad(e)}};
 const sub=(n,q)=>subs.push(onSnapshot(q||ucol(n),s=>{D[n]=s.docs.map(d=>({id:d.id,...d.data()}));L[n]=1;draw();}));
 function run(){show("app");$("#date").value=$("#sdate").value=localDate();["institutions","accounts","scheduled","budgets","categories","debts","goals"].forEach(n=>sub(n));subRec();autoBackupStarted=false;setTimeout(()=>maybeAutoCloudBackup(),5000);}
+let communityStops=[],selectedThread=null,threadMessagesStop=null,activeAds=[],activeNotices=[],adIndex=0,adTimer=null,promoTimer=null,adminThreads=[];
+const rootCol=n=>collection(db,n),rootDoc=(n,id)=>doc(db,n,id),safeHttpUrl=v=>{try{const u=new URL(String(v||""));return ["https:","http:"].includes(u.protocol)?u.href:"";}catch{return "";}};
+const stopAdminListeners=()=>{communityStops.forEach(f=>f());communityStops=[];if(threadMessagesStop){threadMessagesStop();threadMessagesStop=null;}if(adTimer){clearInterval(adTimer);adTimer=null;}if(promoTimer){clearInterval(promoTimer);promoTimer=null;}};
+function initCommunity(){
+ stopAdminListeners();
+ promoTimer=setInterval(()=>{drawPublicAds();drawPublicNotices(activeNotices);},60000);
+ communityStops.push(onSnapshot(rootCol("publicAds"),s=>{activeAds=s.docs.map(d=>({id:d.id,...d.data()})).filter(a=>a.active!==false).sort((a,b)=>(a.order||0)-(b.order||0));drawPublicAds();},e=>console.warn("Ads unavailable",e)));
+ communityStops.push(onSnapshot(query(rootCol("publicNotices"),orderBy("createdAt","desc")),s=>{activeNotices=s.docs.map(d=>({id:d.id,...d.data()}));drawPublicNotices(activeNotices);},e=>console.warn("Notices unavailable",e)));
+ $("#adminNav").hidden=!isAdmin();
+ if(isAdmin())initAdmin();
+ else {
+  const ref=doc(db,"supportThreads",uid);
+  getDoc(ref).then(s=>{if(!s.exists())setDoc(ref,{uid,email:auth.currentUser.email||"",status:"open",updatedAt:serverTimestamp()},{merge:true}).catch(e=>console.warn(e));});
+  communityStops.push(onSnapshot(query(collection(db,"supportThreads",uid,"messages"),orderBy("createdAt","asc")),s=>drawChat($("#supportMessages"),s.docs),e=>console.warn("Chat unavailable",e)));
+ }
+}
+const isContentLive=x=>{const today=localDate();return x.active!==false&&(!x.startDate||x.startDate<=today)&&(!x.endDate||x.endDate>=today);};
+function drawPublicAds(){
+ const el=$("#adCarousel"),items=activeAds.filter(isContentLive);if(!items.length){el.hidden=true;return;}el.hidden=false;adIndex%=items.length;
+ const a=items[adIndex],img=safeHttpUrl(a.imageUrl)?`<img src="${esc(safeHttpUrl(a.imageUrl))}" alt="" loading="lazy">`:"";
+ el.innerHTML=`<div class="ad-copy"><span class="sponsored-label">SPONSORED</span><h3>${esc(a.title||"Advertisement")}</h3><p>${esc(a.body||"")}</p>${safeHttpUrl(a.linkUrl)?`<a href="${esc(safeHttpUrl(a.linkUrl))}" target="_blank" rel="noopener noreferrer">Learn more ↗</a>`:""}</div>${img}<div class="ad-controls"><button type="button" data-ad-prev aria-label="Previous advertisement">‹</button><span>${adIndex+1} / ${items.length}</span><button type="button" data-ad-next aria-label="Next advertisement">›</button></div>`;
+ if(adTimer)clearInterval(adTimer);if(items.length>1)adTimer=setInterval(()=>{const count=activeAds.filter(isContentLive).length;if(count){adIndex=(adIndex+1)%count;drawPublicAds();}},6000);
+}
+function drawPublicNotices(items){
+ items=items.filter(isContentLive);const el=$("#noticeTicker");if(!items.length){el.hidden=true;return;}el.hidden=false;
+ el.innerHTML=`<strong>📢 NOTICE</strong><div class="notice-track"><div class="notice-moving">${items.map(n=>`<span class="notice-${esc(n.level||"normal")}">${esc(n.text||"")}</span>`).join("　 •　 ")}</div></div>`;
+}
+$("#adCarousel").addEventListener("click",e=>{if(e.target.closest("[data-ad-prev]")){adIndex=(adIndex+activeAds.filter(isContentLive).length-1)%activeAds.filter(isContentLive).length;drawPublicAds();}if(e.target.closest("[data-ad-next]")){adIndex=(adIndex+1)%Math.max(1,activeAds.filter(isContentLive).length);drawPublicAds();}});
+function drawChat(el,docs){
+ el.innerHTML=docs.map(d=>{const m=d.data(),mine=m.senderUid===uid;return`<div class="chat-bubble ${mine?"mine":""}"><small>${mine?"You":esc(m.senderEmail||"Admin")}</small><p>${esc(m.text||"")}</p></div>`}).join("")||"<p class='hint'>No messages yet. Send a message to start the conversation.</p>";
+ el.scrollTop=el.scrollHeight;
+}
+async function sendSupportMessage(textValue,adminReply=false){
+ const textMsg=String(textValue||"").trim();if(!textMsg)return;
+ if(adminReply&&!selectedThread)throw new Error("Select a support conversation first.");
+ const target=adminReply?selectedThread:uid,threadRef=doc(db,"supportThreads",target);
+ await setDoc(threadRef,{uid:target,email:adminReply?(adminThreads.find(t=>t.id===target)?.email||""):(auth.currentUser.email||""),status:"open",updatedAt:serverTimestamp(),lastMessage:textMsg},{merge:true});
+ await addDoc(collection(db,"supportThreads",target,"messages"),{text:textMsg,senderUid:uid,senderEmail:auth.currentUser.email||"",createdAt:serverTimestamp()});
+}
+$("#supportSend").onclick=async()=>{try{await sendSupportMessage($("#supportText").value);$("#supportText").value="";}catch(e){bad(e)}};
+function initAdmin(){
+ const usersRef=rootCol("users");
+ communityStops.push(onSnapshot(usersRef,s=>{const users=s.docs.map(d=>({id:d.id,...d.data()}));drawAdminUsers(users);},e=>bad(e)));
+ communityStops.push(onSnapshot(rootCol("publicAds"),s=>drawAdminAds(s.docs),e=>console.warn(e)));
+ communityStops.push(onSnapshot(query(rootCol("publicNotices"),orderBy("createdAt","desc")),s=>drawAdminNotices(s.docs),e=>console.warn(e)));
+ communityStops.push(onSnapshot(query(rootCol("supportThreads"),orderBy("updatedAt","desc")),s=>{adminThreads=s.docs.map(d=>({id:d.id,...d.data()}));$("#adminThreadsCount").textContent=adminThreads.length;drawAdminThreads();},e=>bad(e)));
+}
+function drawAdminUsers(users){
+ const q=$("#adminUserSearch").value.toLowerCase(),filtered=users.filter(u=>(u.email||"").toLowerCase().includes(q));
+ $("#adminUsersCount").textContent=users.length;$("#adminBlockedCount").textContent=users.filter(u=>u.blocked===true).length;$("#adminActiveCount").textContent=users.filter(u=>u.blocked!==true).length;
+ $("#adminUsers").innerHTML=filtered.map(u=>`<div class="admin-row"><span><b>${esc(u.email||(u.id===uid?ADMIN_EMAIL:u.id))}</b><small>${esc(u.currency||"—")} · ${u.blocked?"Blocked":"Active"}</small></span>${(u.id===uid||u.email?.toLowerCase()===ADMIN_EMAIL)?"<b>Admin</b>":`<button class="alt" data-user-toggle="${u.id}" data-blocked="${u.blocked===true}">${u.blocked?"Unblock":"Block"}</button>`}</div>`).join("")||"<p class='hint'>No users found.</p>";
+}
+$("#adminUserSearch").oninput=()=>getDocs(rootCol("users")).then(s=>drawAdminUsers(s.docs.map(d=>({id:d.id,...d.data()})))).catch(bad);
+$("#adminUsers").onclick=async e=>{const b=e.target.closest("[data-user-toggle]");if(!b)return;try{await updateDoc(rootDoc("users",b.dataset.userToggle),{blocked:b.dataset.blocked!=="true",blockedAt:serverTimestamp(),blockedBy:uid});}catch(er){bad(er)}};
+function drawAdminAds(docs){$("#adminAds").innerHTML=[...docs].sort((a,b)=>(a.data().order||0)-(b.data().order||0)).map(d=>{const a=d.data();return`<div class="admin-row"><span><b>${esc(a.title||"Ad")}</b><small>${a.active?"Active":"Inactive"} · order ${a.order||0}</small></span><button class="alt" data-ad-edit="${d.id}">Edit</button><button class="alt" data-ad-toggle="${d.id}" data-active="${a.active!==false}">${a.active===false?"Enable":"Disable"}</button><button class="alt danger" data-ad-delete="${d.id}">Delete</button></div>`}).join("")||"<p class='hint'>No advertisements published.</p>";}
+function drawAdminNotices(docs){$("#adminNotices").innerHTML=docs.map(d=>{const n=d.data();return`<div class="admin-row"><span><b>${esc(n.text||"")}</b><small>${esc(n.level||"normal")} · ${n.active?"Active":"Inactive"}</small></span><button class="alt" data-notice-edit="${d.id}">Edit</button><button class="alt" data-notice-toggle="${d.id}" data-active="${n.active!==false}">${n.active===false?"Enable":"Disable"}</button><button class="alt danger" data-notice-delete="${d.id}">Delete</button></div>`}).join("")||"<p class='hint'>No notices published.</p>";}
+function drawAdminThreads(){const el=$("#adminThreads");el.innerHTML=adminThreads.map(t=>`<button class="admin-thread ${selectedThread===t.id?"on":""}" data-thread="${t.id}"><b>${esc(t.email||t.id)}</b><small>${esc(t.lastMessage||"No messages")} · ${esc(t.status||"open")}</small></button>`).join("")||"<p class='hint'>No support conversations yet.</p>";}
+$("#adminThreads").onclick=e=>{const b=e.target.closest("[data-thread]");if(!b)return;selectedThread=b.dataset.thread;if(threadMessagesStop)threadMessagesStop();threadMessagesStop=onSnapshot(query(collection(db,"supportThreads",selectedThread,"messages"),orderBy("createdAt","asc")),s=>drawChat($("#adminChatMessages"),s.docs),bad);drawAdminThreads();};
+$("#adminReply").onclick=async()=>{try{await sendSupportMessage($("#adminReplyText").value,true);$("#adminReplyText").value="";}catch(e){bad(e)}};
+let editingAdId=null,editingNoticeId=null;
+$("#adSave").onclick=async()=>{try{const title=$("#adTitle").value.trim();if(!title)throw new Error("Enter an advertisement title.");const order=Math.max(0,Number($("#adOrder").value)||0);const startDate=$("#adStart").value,endDate=$("#adEnd").value;if(startDate&&endDate&&endDate<startDate)throw new Error("End date must be on or after the start date.");const payload={title,body:$("#adBody").value.trim(),imageUrl:safeHttpUrl($("#adImage").value.trim()),linkUrl:safeHttpUrl($("#adLink").value.trim()),order,startDate,endDate,active:true,updatedAt:serverTimestamp()};if(editingAdId){await updateDoc(rootDoc("publicAds",editingAdId),payload);editingAdId=null;$("#adSave").textContent="Publish advertisement";}else await addDoc(rootCol("publicAds"),{...payload,createdAt:serverTimestamp(),createdBy:uid});["adTitle","adBody","adImage","adLink","adStart","adEnd"].forEach(id=>$("#"+id).value="");}catch(e){bad(e)}};
+$("#adminAds").onclick=async e=>{const ed=e.target.closest("[data-ad-edit]"),t=e.target.closest("[data-ad-toggle]"),d=e.target.closest("[data-ad-delete]");try{if(ed){const a=(await getDoc(rootDoc("publicAds",ed.dataset.adEdit))).data();editingAdId=ed.dataset.adEdit;$("#adTitle").value=a.title||"";$("#adBody").value=a.body||"";$("#adImage").value=a.imageUrl||"";$("#adLink").value=a.linkUrl||"";$("#adOrder").value=a.order||0;$("#adStart").value=a.startDate||"";$("#adEnd").value=a.endDate||"";$("#adSave").textContent="Update advertisement";return;}if(t)await updateDoc(rootDoc("publicAds",t.dataset.adToggle),{active:t.dataset.active!=="true"});if(d&&confirm("Delete this advertisement?"))await deleteDoc(rootDoc("publicAds",d.dataset.adDelete));}catch(er){bad(er)}};
+$("#noticeSave").onclick=async()=>{try{const textValue=$("#noticeText").value.trim();if(!textValue)throw new Error("Enter notice text.");const startDate=$("#noticeStart").value,endDate=$("#noticeEnd").value;if(startDate&&endDate&&endDate<startDate)throw new Error("End date must be on or after the start date.");const payload={text:textValue,level:$("#noticeLevel").value,startDate,endDate,active:true,updatedAt:serverTimestamp()};if(editingNoticeId){await updateDoc(rootDoc("publicNotices",editingNoticeId),payload);editingNoticeId=null;$("#noticeSave").textContent="Publish notice";}else await addDoc(rootCol("publicNotices"),{...payload,createdAt:serverTimestamp(),createdBy:uid});$("#noticeText").value="";$("#noticeStart").value="";$("#noticeEnd").value="";}catch(e){bad(e)}};
+$("#adminNotices").onclick=async e=>{const ed=e.target.closest("[data-notice-edit]"),t=e.target.closest("[data-notice-toggle]"),d=e.target.closest("[data-notice-delete]");try{if(ed){const n=(await getDoc(rootDoc("publicNotices",ed.dataset.noticeEdit))).data();editingNoticeId=ed.dataset.noticeEdit;$("#noticeText").value=n.text||"";$("#noticeLevel").value=n.level||"normal";$("#noticeStart").value=n.startDate||"";$("#noticeEnd").value=n.endDate||"";$("#noticeSave").textContent="Update notice";return;}if(t)await updateDoc(rootDoc("publicNotices",t.dataset.noticeToggle),{active:t.dataset.active!=="true"});if(d&&confirm("Delete this notice?"))await deleteDoc(rootDoc("publicNotices",d.dataset.noticeDelete));}catch(er){bad(er)}};
+
 function subRec(){recSub&&recSub();const d=new Date(),from=new Date(d.getFullYear(),d.getMonth()-back+1,1);recSub=onSnapshot(query(ucol("records"),where("date",">=",Timestamp.fromDate(from)),orderBy("date","desc")),s=>{D.records=s.docs.map(x=>({id:x.id,...x.data()}));L.records=1;draw()});subs.push(recSub)}
 const themeModes=["auto","light","dark"];
 function applyTheme(mode){

@@ -47,3 +47,19 @@ No Firestore collection names, document IDs or existing user records are changed
 - Added Firestore rules for owner-only cloud backup metadata and chunks.
 
 Note: This development build does not yet include a connected generative AI service. The Smart Financial Insights feature is deterministic and runs from the user's existing app data. A true conversational AI service requires a separately configured server-side provider key and backend endpoint.
+
+## 2.1.0 — Admin and communication update (development build)
+- Added verified-email admin access for `admin.moneytracker@gmail.com`.
+- Added user listing and block/unblock controls.
+- Added admin-managed sponsored ads and scrolling notices.
+- Added private user-to-admin in-app support chat.
+- Added Firestore rules for admin operations and support-thread privacy.
+- Preserved existing finance collections, document IDs, backup and restore behavior.
+
+
+## 2.1.1 — 2026-11-27
+- Fixed malformed newline characters in the Admin JavaScript and Firestore rules.
+- Restricted the verified administrator's user-profile updates to block metadata only.
+- Added optional start/end scheduling dates for sponsored ads and notices.
+- Required a verified Firebase Auth email before displaying the Admin interface.
+- Bumped the service-worker cache version to ensure clients fetch the updated app files.
