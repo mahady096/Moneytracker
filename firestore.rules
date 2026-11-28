@@ -4,26 +4,32 @@ service cloud.firestore {
     function signedInAs(uid) {
       return request.auth != null && request.auth.uid == uid;
     }
+    function activeUser(uid) {
+      return signedInAs(uid)
+        && !exists(/databases/$(database)/documents/blockedUsers/$(uid))
+        && !(exists(/databases/$(database)/documents/profiles/$(uid))
+          && get(/databases/$(database)/documents/profiles/$(uid)).data.blocked == true);
+    }
     match /users/{uid} {
-      allow read, write: if signedInAs(uid);
+      allow read, write: if activeUser(uid);
 
 
       match /cloudBackups/{backupId} {
-        allow read, write: if signedInAs(uid);
+        allow read, write: if activeUser(uid);
         match /chunks/{chunkId} {
-          allow read, write: if signedInAs(uid);
+          allow read, write: if activeUser(uid);
         }
       }
       match /institutions/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 100;
       }
       match /accounts/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.balance is int
@@ -31,8 +37,8 @@ service cloud.firestore {
           && request.resource.data.balance <= 9000000000000000;
       }
       match /scheduled/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.name is string
           && request.resource.data.amount is int
           && request.resource.data.amount > 0
@@ -40,37 +46,37 @@ service cloud.firestore {
           && request.resource.data.freq in ['weekly', 'monthly', 'quarterly', 'yearly'];
       }
       match /budgets/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.limit is int
           && request.resource.data.limit > 0;
       }
       match /categories/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 60;
       }
       match /debts/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.person is string
           && request.resource.data.amount is int && request.resource.data.amount > 0
           && request.resource.data.paid is int && request.resource.data.paid >= 0
           && request.resource.data.paid <= request.resource.data.amount;
       }
       match /goals/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.name is string
           && request.resource.data.target is int && request.resource.data.target > 0
           && request.resource.data.saved is int && request.resource.data.saved >= 0
           && request.resource.data.saved <= request.resource.data.target;
       }
       match /records/{id} {
-        allow read, delete: if signedInAs(uid);
-        allow create, update: if signedInAs(uid)
+        allow read, delete: if activeUser(uid);
+        allow create, update: if activeUser(uid)
           && request.resource.data.amount is int
           && request.resource.data.amount > 0
           && request.resource.data.type in ['income', 'expense', 'transfer']
@@ -80,7 +86,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+      return request.auth != null
+        && request.auth.token.email == 'admin.moneytracker@gmail.com'
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
     match /admins/{id} {
       allow get: if request.auth != null && request.auth.uid == id;
@@ -92,6 +100,11 @@ service cloud.firestore {
         && request.resource.data.notice is string && request.resource.data.notice.size() <= 300
         && request.resource.data.slides is list && request.resource.data.slides.size() <= 10;
     }
+    match /blockedUsers/{id} {
+      allow get: if request.auth != null && request.auth.uid == id;
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
     match /profiles/{id} {
       allow get: if request.auth != null && (request.auth.uid == id || isAdmin());
       allow list: if isAdmin();
@@ -100,7 +113,8 @@ service cloud.firestore {
         && request.resource.data.blocked == false;
       allow update: if (request.auth != null && request.auth.uid == id
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen','email','appVersion'])) || isAdmin();
-      allow delete: if (request.auth != null && request.auth.uid == id) || isAdmin();
+      allow delete: if isAdmin()
+        || (request.auth != null && request.auth.uid == id && resource.data.blocked != true);
     }
     match /messages/{id} {
       allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
@@ -108,6 +122,7 @@ service cloud.firestore {
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
         && request.resource.data.status == 'new'
+        && !exists(/databases/$(database)/documents/blockedUsers/$(request.auth.uid))
         && !(exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.blocked == true)
         && request.resource.data.keys().hasOnly(['uid','email','text','status','createdAt']);
       allow update: if isAdmin();

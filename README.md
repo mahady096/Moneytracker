@@ -1,82 +1,67 @@
 # Money Tracker
 
-**Current development release:** 2.0.0 (Cloud backup + Smart Financial Insights; release candidate, not production-certified)
+**Release candidate:** 2.5.1 Optimized
 
-A personal finance web app and installable PWA: institutions and accounts, income/expense/transfer records, scheduled payments, budgets, savings goals, lend/borrow tracking, charts and reports, backup/restore, PIN lock.
+Money Tracker is an English-language personal finance PWA with accounts, income, expenses, transfers, budgets, savings goals, scheduled payments, reports, exports, Smart Financial Insights, cloud backup/restore and an admin dashboard.
 
-**Stack:** plain HTML, CSS and JavaScript (no build step), Firebase Authentication and Cloud Firestore, hosted on Cloudflare Workers (static assets).
+**Stack:** HTML, CSS, JavaScript modules, Firebase Authentication, Cloud Firestore, Cloudflare Workers static assets.
 
-## Setup
-1. Create a Firebase project; enable Email/Password and Google sign-in; create a Firestore database.
-2. Put your web app config in `firebase-config.js`.
-3. Publish `firestore.rules` in Firebase Console > Firestore > Rules (required after every update of that file).
-4. Add your domain under Authentication > Settings > Authorized domains.
+## 2.5.1 optimization notes
+
+- Recent transaction listener starts with the latest 3 months and is capped at 1,000 documents. The user can load older months when needed.
+- Yearly reports expand the loaded date range, subject to the same 1,000-document safety cap. If a report reaches that cap, narrow the period before relying on its totals.
+- Automatic cloud backup checks every 30 days (when the app is opened online); manual cloud backup remains available.
+- Backup JSON is split into 180,000-character chunks and written in batches of 10 chunk documents to stay below Firestore document/request limits, including non-ASCII text.
+- Backup retention keeps the latest 4 completed backups. Pruning deletes known chunk IDs in batches instead of reading every chunk first.\n- Restore writes use bounded batches (maximum 200 documents / approximately 6 MiB per request) to reduce Firestore request-size failures.
+- The user's support-message history is capped at 50 items per fetch.
+- Only `admin.moneytracker@gmail.com` with its matching `admins/{uid}` document is accepted by the app and Firestore admin rules.
+- Admin blocking writes a protected `blockedUsers/{uid}` marker. Rules also honor legacy `profiles/{uid}.blocked` values, and a blocked user cannot delete their own profile to bypass the restriction.
+- Existing user collection names and document IDs are preserved. No bulk migration or deletion is performed.
+
+## Firebase setup
+
+1. Enable Email/Password and Google sign-in in Firebase Authentication.
+2. Create/enable Cloud Firestore.
+3. Confirm `firebase-config.js` points to the existing `moneytrack-c5787` project.
+4. Publish `firestore.rules` in Firebase Console → Firestore Database → Rules **before deploying this release**. The new `blockedUsers` rules are required for admin blocking.
+5. Add the deployed app hostname under Firebase Authentication → Settings → Authorized domains.
+6. In Google Cloud Console, restrict the Firebase Web API key by the app's HTTP referrers and only the APIs the app uses. Firebase web config is public client configuration, not a server secret.
+
+### Super Admin setup
+
+1. Sign in to the app with `admin.moneytracker@gmail.com`.
+2. Copy that account's UID from Firebase Console → Authentication → Users.
+3. In Firestore, create `admins/{UID}` (the Document ID must be the exact UID; a field named `uid` is not a substitute).
+4. Sign out and sign in again. The admin dashboard is available only to the configured email and matching UID document.
+
+## Cloud backup behavior
+
+- Automatic backup is **not** a server-side scheduled job. It runs when the app is opened while online, no more than once every 30 days.
+- Manual Cloud Backup is available at any time.
+- Restore validates the backup and merges by document ID. Matching IDs are overwritten; documents not present in the backup are retained.
+- Keep an independent JSON export before restoring important data.
+- Large backups can still take time and consume Firestore reads/writes. The chunking strategy reduces request-size failures; it does not make backup free.
 
 ## Deploy
-Push to `main`; Cloudflare builds from this repository (`wrangler.jsonc`, `.assetsignore` keeps non-public files out). Users get updates on the next app open.
 
-## Android app
-Package the live URL with PWABuilder (Trusted Web Activity). Keep `.well-known/assetlinks.json` in sync with the signing key; keep the keystore safe.
+Push the source to the connected GitHub branch. Cloudflare Workers should deploy the static assets from `wrangler.jsonc`. Users receive web changes the next time the hosted app is opened; the service-worker cache namespace is advanced to `mw-v13`.
 
-## Privacy
-See `privacy.html`. Users can export a backup and delete their account and data in Settings.
+## Android
 
+- Package ID remains `com.app.moneytracker`.
+- `.well-known/assetlinks.json` retains the existing signing certificate fingerprint.
+- Web-only changes do not require a new APK when the Android TWA simply loads the hosted site.
+- Native Android changes require a new signed build using the original keystore and an incremented versionCode. Never upload the keystore or its passwords to GitHub.
 
-## Version 1.1.0 changes
-- Added dashboard quick actions for income, expense and transfers.
-- Added a six-month cash-flow chart to the home dashboard.
-- Added persistent Auto / Light / Dark appearance selection.
-- Refined the premium dashboard layout, cards, navigation and mobile spacing.
-- Tightened Firestore validation so debt payments cannot exceed the debt amount and savings cannot exceed the goal target.
+## Release verification still required
 
-## Important deployment notes for 1.1.0
-- Review `firestore.rules` and deploy it to the same Firebase project before relying on the new validation.
-- Existing user documents are not migrated, deleted or rewritten by this release.
-- Test the rules against a disposable account and existing data before production deployment.
-- The app's scheduled payments still execute when the app is opened; this is not a server-side background scheduler.
-- Google sign-in must be tested on the actual Android TWA build and the deployed Firebase Authorized Domains must include the app hostname.
+This source package has passed static JavaScript syntax and archive-integrity checks. It has **not** been live-tested against your Firebase production project or on a matrix of Android devices. Before public release, test with a disposable account:
 
+- Sign up/sign in, Google sign-in and password reset.
+- Existing account data and transaction editing.
+- Admin access with the configured email and exact UID document.
+- Block and unblock, including profile deletion/recreation attempt.
+- Manual and automatic backup, backup retention, and restore with a large test dataset.
+- Offline launch, service-worker update, exports and Android TWA navigation.
 
-## Version 1.2.0 — Smart Finance
-- Transaction search and filters: account, type, category and date range.
-- Monthly budget progress with remaining and overspent amounts.
-- Savings-goal progress with completion percentage and remaining target.
-- Dashboard reminders for scheduled payments that are overdue or due within the next 7 days. Reminders are in-app only; scheduled transactions are still processed when the app opens, not by a server-side background job.
-
-This update preserves the existing Firestore collection names and document IDs. It does not run a data migration.
-
-
-## Version 1.3.0 changes
-- Added monthly and yearly financial report periods.
-- Added period-based income, expense, net cash flow and saving-rate summaries.
-- Added category-wise expense and income analysis, monthly cash-flow breakdowns for yearly reports, and budget performance.
-- Added period-filtered report CSV export while retaining the all-records CSV export.
-- Improved standalone HTML report export and browser Print / Save as PDF workflow.
-- Clarified that account balances in reports are current snapshots, not historical period-end balances.
-- Advanced the service-worker cache namespace to `mw-v6`.
-
-### Data compatibility
-This release uses existing Firestore records, accounts, budgets and goals. It does not rename collections, change document IDs, or migrate, delete or rewrite existing user data. Backup and restore retain the existing JSON format and merge-by-document-ID behavior. PDF output is generated through the browser print dialog; choose Save as PDF.
-
-
-## Version 2.0.0 development notes
-- Adds deterministic, on-device Smart Financial Insights using existing income, expense and budget records. This is not a generative AI chatbot and does not send financial data to an AI provider.
-- Adds manual and daily-on-app-open automatic Firestore backups. Backup payloads are split into sub-1 MiB chunks under `users/{uid}/cloudBackups/{backupId}/chunks/`; the 14 newest completed backups are retained.
-- Restore uses merge-by-document-ID. It overwrites matching IDs only and does not delete records absent from the selected backup. Keep a separate JSON backup before restoring.
-- Automatic backup runs when the app opens with an internet connection; it is not a background scheduled job while the app is closed. It retries when connectivity returns.
-
-### Required Firebase deployment step for 2.0.0
-Publish the updated `firestore.rules` to the existing Firebase project before using Cloud Backup or Cloud Restore. In Firebase Console, open **Firestore Database → Rules**, replace the rules with this file's contents, then publish. The new `cloudBackups` and `chunks` paths are owner-only (`request.auth.uid` must match the path UID). Do not change the existing user collections or document IDs.
-
-### AI service status
-A true conversational generative AI assistant is not enabled in this build. It requires choosing an AI provider and configuring a server-side API secret plus a backend endpoint. Never put an AI API key in `app.js`, `firebase-config.js`, or any public repository file.
-
-### Release status
-This is a source development build. Before public release, test sign-in, Firestore rules, manual/automatic backup, restore on a test account, offline behavior, and Android Trusted Web Activity. A new Android APK/AAB must be built and signed with the original signing key to preserve update compatibility. The package association remains `com.app.moneytracker`; the web-only source changes do not themselves produce a new APK.
-
-
-## Admin dashboard
-1. Publish `firestore.rules`.
-2. Sign in to the app once with the admin account and copy its User UID from Firebase Console > Authentication > Users.
-3. In Firestore create collection `admins` with a document whose ID is that UID (any field, for example `role: "admin"`).
-4. Open `/admin.html` and sign in. Only accounts listed in `admins` can edit the notice and slides or read messages.
+Do not deploy new Firestore rules until you have reviewed them and retained a separate backup of production data.

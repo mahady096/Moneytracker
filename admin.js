@@ -8,7 +8,7 @@ $("#go").onclick=()=>signInWithEmailAndPassword(auth,$("#em").value.trim(),$("#p
 $("#gg").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(bad);
 $("#so").onclick=()=>signOut(auth);
 onAuthStateChanged(auth,async u=>{$("#login").hidden=!!u;$("#panel").hidden=true;if(!u){$("#st").textContent="Sign in with an admin account.";return}
-let ok=false;try{ok=(await getDoc(doc(db,"admins",u.uid))).exists()}catch(e){}
+let ok=(u.email||"").toLowerCase()==="admin.moneytracker@gmail.com";if(ok){try{ok=(await getDoc(doc(db,"admins",u.uid))).exists()}catch(e){ok=false}}
 if(!ok){$("#st").textContent="This account is not an admin. Your user ID: "+u.uid;return}
 $("#st").textContent="";$("#panel").hidden=false;$("#who").textContent=u.email||u.uid;
 try{const c=await getDoc(doc(db,"site","config")),d=c.exists()?c.data():{};$("#nt").value=d.notice||"";$("#non").checked=!!d.noticeOn;slides=d.slides||[]}catch(e){bad(e)}
@@ -32,7 +32,7 @@ $("#ustat").textContent="("+users.length+" users, "+users.filter(u=>(u.lastSeen?
 $("#ul").innerHTML=users.filter(u=>!q||(u.email||"").toLowerCase().includes(q)||u.id.toLowerCase().includes(q)).map(u=>`<li style="display:block"><b>${esc(u.email||"(no email)")}</b> ${u.blocked?'<span class="expense">Blocked</span>':""}<small>Joined ${u.createdAt?u.createdAt.toDate().toLocaleDateString():"?"}, last seen ${u.lastSeen?u.lastSeen.toDate().toLocaleString():"?"}</small>${u.note?`<small>Note: ${esc(u.note)}</small>`:""}<div class="row"><button class="alt" data-blk="${u.id}">${u.blocked?"Unblock":"Block"}</button><button class="alt" data-nt="${u.id}">Note</button><button class="alt" data-udel="${u.id}">Remove</button></div></li>`).join("")||"<li>No users.</li>"}
 $("#uq").oninput=drawUsers;
 $("#ul").onclick=async e=>{const d=e.target.dataset,u=users.find(x=>x.id===(d.blk||d.nt||d.udel));if(!u)return;try{
-if(d.blk){if(u.id===auth.currentUser.uid)return alert("You cannot block your own account.");if(!u.blocked&&!confirm("Block "+(u.email||u.id)+"?"))return;await updateDoc(doc(db,"profiles",u.id),{blocked:!u.blocked})}
+if(d.blk){if(u.id===auth.currentUser.uid)return alert("You cannot block your own account.");if(!u.blocked&&!confirm("Block "+(u.email||u.id)+"?"))return;if(u.blocked){await deleteDoc(doc(db,"blockedUsers",u.id));await updateDoc(doc(db,"profiles",u.id),{blocked:false})}else{await setDoc(doc(db,"blockedUsers",u.id),{blocked:true,updatedAt:serverTimestamp()});await updateDoc(doc(db,"profiles",u.id),{blocked:true})}}
 if(d.nt){const n=prompt("Note about this user (admin only):",u.note||"");if(n===null)return;await updateDoc(doc(db,"profiles",u.id),{note:n.slice(0,200)})}
 if(d.udel&&confirm("Remove this entry? It is recreated when the user opens the app again. Their account and data are not deleted."))await deleteDoc(doc(db,"profiles",u.id));
 loadUsers()}catch(er){bad(er)}};

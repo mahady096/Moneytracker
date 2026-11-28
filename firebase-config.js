@@ -1,5 +1,5 @@
 // Firebase Web App configuration
-// Source: Firebase Console > Project settings > Your apps
+// Public client configuration. Restrict the API key by HTTP referrer in Google Cloud Console.
 export const firebaseConfig = {
   apiKey: "AIzaSyApEgz6URSApeQ7GQ49n4KzRjRUATrIEOI",
   authDomain: "moneytrack-c5787.firebaseapp.com",
