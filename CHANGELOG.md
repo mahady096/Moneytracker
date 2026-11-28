@@ -74,3 +74,10 @@ Note: This development build does not yet include a connected generative AI serv
 - Firestore rules evaluate the user's own access before the admin lookup so normal users never trigger an extra rule read.
 - Block checks can take up to 6 hours to apply on a device that already opened the app.
 - Service-worker cache namespace is now `mw-v10`.
+
+
+## Version 2.5.0 (premium UI)
+- New design system: ivory and emerald light theme, deep green dark theme, champagne-gold accents, layered net-worth card, refined cards and grouped lists, gradient buttons and soft focus rings.
+- Floating glass navigation bar with icons and an active-tab indicator.
+- Subtle tab transitions (disabled when the device requests reduced motion), refined auth screen, lock screen, notice bar and highlight slides.
+- Theme colour updated; service-worker cache namespace is now `mw-v11`. No data or rules changes.
