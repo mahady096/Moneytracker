@@ -133,8 +133,8 @@ h1,h2{letter-spacing:-.04em;font-weight:800}
 header{border-bottom:1px solid transparent;border-image:linear-gradient(90deg,var(--gold2),transparent 70%) 1}
 header h2{font-size:1.5rem}
 button{background:linear-gradient(180deg,color-mix(in srgb,var(--ac) 92%,#fff),var(--ac));border-color:color-mix(in srgb,var(--ac) 80%,#000);color:#fff;border-radius:14px;box-shadow:0 8px 18px -10px color-mix(in srgb,var(--ac) 80%,#000)}
-:root[data-theme="dark"] button,button.on-dark{color:#06201a}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) button{color:#06201a}}
+
+@media(prefers-color-scheme:dark){}
 button.alt{background:transparent;color:var(--fg);box-shadow:none;border-color:var(--bd)}
 button.alt:hover{background:var(--ac-soft);border-color:color-mix(in srgb,var(--ac) 30%,var(--bd))}
 input,select,textarea{border-radius:14px;background:color-mix(in srgb,var(--card) 70%,var(--bg));border-color:var(--bd)}
@@ -272,3 +272,24 @@ a:focus-visible{outline:2px solid var(--gold2);outline-offset:3px;border-radius:
 }
 @media(hover:none){.cards div:hover,.tile:hover{transform:none}}
 @media(prefers-reduced-motion:reduce){.cards div,.tile,.quick-action{transition:none}}
+
+
+/* ===== 2.5.3 contrast-safe layer: readable in light, dark and auto modes ===== */
+:root{--on-ac:#fff}
+@media(prefers-color-scheme:dark){:root{--on-ac:#04201a}}
+:root[data-theme="light"]{--on-ac:#fff}
+:root[data-theme="dark"]{--on-ac:#04201a}
+button{color:var(--on-ac)}
+button.alt,.quick-action:not(.positive){color:var(--fg)}
+.quick-action.positive{color:var(--on-ac)}
+.tkb{background:linear-gradient(135deg,#e6c47d,#b98a3a);color:#1b1405}
+:root{--mut:#586861;--gold:#6f4f14}
+@media(prefers-color-scheme:dark){:root{--mut:#92a69c;--gold:#e0b86b}}
+:root[data-theme="light"]{--mut:#586861;--gold:#6f4f14}
+:root[data-theme="dark"]{--mut:#92a69c;--gold:#e0b86b}
+.brand-mark{color:#f0d697}
+.slide em{background:rgba(0,0,0,.3);color:#fff}
+.quick-action.positive .quick-icon{background:rgba(0,0,0,.2)}
+:root[data-theme="dark"] .quick-action.positive .quick-icon{background:rgba(255,255,255,.3)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .quick-action.positive .quick-icon{background:rgba(255,255,255,.3)}}
+@media(max-width:680px){#nav{gap:2px;padding:6px 5px}#nav button{min-width:0;flex:1 1 0;padding:7px 1px;font-size:.62rem;letter-spacing:0}#nav button:before{width:20px;height:20px}}
