@@ -71,3 +71,7 @@ This source update does not rename collections, change document IDs, migrate use
 - CSV export for the selected report period, alongside all-record CSV.
 - Standalone HTML report and browser Print / Save as PDF.
 - Existing JSON backup and restore retained; no user data migration.
+
+
+## Premium UI refresh
+The release ZIP includes a responsive ivory/emerald/gold UI refinement for the dashboard, forms, reports, navigation, authentication and Admin dashboard. The refresh is CSS-only apart from the service-worker cache namespace bump (`mw-v16`).

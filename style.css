@@ -191,3 +191,84 @@ li{border-bottom-color:color-mix(in srgb,var(--bd) 80%,transparent)}
 @media(max-width:680px){.hero{border-radius:24px;padding:26px 20px}#nav{border-radius:22px}#nav button{min-width:64px}}
 @media(prefers-reduced-motion:reduce){.tab:not([hidden]){animation:none}}
 @media print{body{background:#fff!important}.hero{background:#fff!important;color:#111!important;border:1px solid #ccc}.hero b{color:#111!important}.hero small{color:#555!important}}
+
+
+/* ===== Premium UI finishing pass — responsive, accessible, consistent ===== */
+:root{--radius-card:22px;--radius-control:15px;--focus-ring:0 0 0 4px color-mix(in srgb,var(--ac) 17%,transparent)}
+body{min-height:100vh}
+main{padding-top:clamp(18px,3vw,30px)}
+#app>header{position:relative;align-items:center;padding:8px 0 18px}
+#app>header>div:first-child{min-width:0}
+#app>header h2{font-size:clamp(1.35rem,4vw,1.65rem)}
+.hbtn{align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.hbtn button{min-height:40px;border-radius:12px}
+.tab{min-width:0}
+.tab>h3{display:flex;align-items:center;gap:8px}
+.tab>h3:not(:first-child){margin-top:28px}
+.dash-panel{overflow:hidden}
+.section-head{min-height:36px}
+.cards div{overflow:hidden;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.cards div:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--gold2) 55%,var(--bd));box-shadow:0 16px 32px -18px color-mix(in srgb,var(--fg) 24%,transparent)}
+.quick-action{font-weight:750;letter-spacing:-.01em}
+.quick-action:not(.positive):hover{border-color:color-mix(in srgb,var(--gold2) 65%,var(--bd));background:var(--ac-soft)}
+button,input,select,textarea{border-radius:var(--radius-control)}
+input,select,textarea{min-width:0;min-height:48px;padding:12px 14px}
+textarea{min-height:88px;line-height:1.5}
+button{min-height:46px;letter-spacing:.005em}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:0;box-shadow:var(--focus-ring)}
+button.alt{border-color:color-mix(in srgb,var(--bd) 85%,var(--fg) 15%)}
+.grid,.filter-grid{align-items:stretch}
+.grid>*,.filter-grid>*{min-width:0}
+#recs li,#insts li,#schs li,#buds li,#goals li,#debts li{gap:10px}
+#recs li>span,#insts li>span,#schs li>span,#buds li>span,#goals li>span,#debts li>span{overflow-wrap:anywhere}
+#nav{padding:8px;gap:5px;bottom:max(10px,env(safe-area-inset-bottom))}
+#nav button{flex:1 0 auto;min-width:68px;padding:8px 7px;font-weight:750}
+#nav button:focus-visible{outline:2px solid var(--gold2);outline-offset:-2px;box-shadow:none}
+.auth-panel{padding:clamp(24px,5vw,36px)}
+.auth-panel h1{font-size:clamp(2rem,7vw,2.65rem)}
+.auth-panel input{margin:7px 0}
+.auth-panel #login{margin-top:12px}
+.auth-panel .muted{line-height:1.65}
+#onboard{max-width:440px}
+#ticker{margin:14px 0 18px}
+#slidesWrap{margin-bottom:12px}
+#alerts li,#reminders li{gap:10px}
+#insights li{padding:14px 4px}
+#insights li:last-child{border-bottom:0}
+#cashflow{min-width:0;overflow:hidden}
+#cashflow svg{max-width:100%}
+.report-title{border-bottom-color:color-mix(in srgb,var(--gold2) 35%,var(--bd))}
+.report-kpis>div{box-shadow:var(--shadow)}
+#toast{bottom:calc(88px + env(safe-area-inset-bottom));max-width:560px;margin:auto}
+.acard{border-radius:16px;padding:14px;background:var(--card);box-shadow:var(--shadow)}
+body:has(#panel) main>h1{font-size:clamp(1.8rem,5vw,2.4rem);margin-bottom:6px}
+body:has(#panel) main>section{background:var(--card);border:1px solid var(--bd);border-radius:22px;padding:18px;margin:16px 0;box-shadow:var(--shadow)}
+body:has(#panel) main>h3{margin-top:26px}
+body:has(#panel) #panel>h3{padding-top:16px;border-top:1px solid var(--bd)}
+body:has(#panel) #panel>h3:first-of-type{border-top:0}
+body:has(#panel) #panel li{padding:12px 4px}
+body:has(#panel) textarea{min-height:90px}
+a{color:var(--ac);text-underline-offset:3px}
+a:focus-visible{outline:2px solid var(--gold2);outline-offset:3px;border-radius:4px}
+@media(max-width:680px){
+ main{padding-top:14px}
+ #app>header{align-items:flex-start;gap:8px}
+ #app>header>div:first-child{padding-top:5px}
+ .hbtn{max-width:58%;gap:5px}
+ .hbtn button{font-size:.7rem;padding:7px 9px;min-height:36px}
+ .cards{gap:9px}
+ .cards div{padding:14px 12px}
+ .quick-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #nav{justify-content:flex-start}
+ #nav button{min-width:68px}
+ body:has(#panel) main>section{padding:14px;border-radius:18px}
+}
+@media(max-width:390px){
+ #app>header{display:block}
+ .hbtn{max-width:none;justify-content:flex-start;margin-top:10px}
+ .hbtn button{flex:1}
+ .quick-action{padding:8px 4px;font-size:.7rem}
+ .quick-icon{width:27px;height:27px}
+}
+@media(hover:none){.cards div:hover,.tile:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){.cards div,.tile,.quick-action{transition:none}}

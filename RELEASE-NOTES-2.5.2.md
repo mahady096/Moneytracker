@@ -16,3 +16,12 @@
 
 ## Before public release
 Publish and review `firestore.rules` in Firebase Console, then test sign-in, verified admin access, user blocking/unblocking, transactions, cloud backup/restore, offline launch and the Android TWA using a disposable test account. This package has not been live-tested against the production Firebase project.
+
+
+## Premium UI refresh (included in this ZIP)
+- Refined the ivory, emerald and gold visual system across dashboard cards, forms, navigation, reports and authentication screens.
+- Improved responsive spacing, touch targets, safe-area handling, keyboard focus states and reduced-motion behavior.
+- Applied matching styling to the Admin dashboard without changing its authentication or data logic.
+- Advanced the service-worker cache namespace to `mw-v16` so deployed clients fetch the refreshed stylesheet.
+
+This is a presentation-layer update. It does not change the Firebase data model, transaction logic, Android package ID or signing identity.
