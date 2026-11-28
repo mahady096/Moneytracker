@@ -1,3 +1,7 @@
+## 2.5.4 — Dashboard summary details
+- Added clickable Assets, Debts, Income and Spent cards with read-only detail lists.
+- Updated service-worker cache namespace to `mw-v18`.
+
 # Changelog
 
 ## 2.5.2 — Final optimization release candidate

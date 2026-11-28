@@ -307,8 +307,65 @@ if(sl.length>1)slT=setInterval(()=>{if(document.hidden)return;const w=box.client
 async function checkAccount(){const isSuperAdmin=auth.currentUser?.emailVerified===true&&(auth.currentUser?.email||"").toLowerCase()==="admin.moneytracker@gmail.com";$("#adminBtn").hidden=true;try{const pr=doc(db,"profiles",uid),[s,ban]=await Promise.all([getDoc(pr),getDoc(doc(db,"blockedUsers",uid))]),d=s.exists()?s.data():null;
 if((d&&d.blocked)||ban.exists()){alert("Your account has been suspended. Please contact the administrator.");localStorage.removeItem("mw:chk:"+uid);localStorage.removeItem("mw:adm:"+uid);signOut(auth);return}
 const em=auth.currentUser.email||"";
-if(!d){await setDoc(pr,{email:em,createdAt:serverTimestamp(),lastSeen:serverTimestamp(),blocked:false,note:"",appVersion:"2.5.2"});}
-else if(Date.now()-(d.lastSeen?.toMillis?.()||0)>24*3600*1000)await updateDoc(pr,{lastSeen:serverTimestamp(),email:em,appVersion:"2.5.2"})}catch(e){}
+if(!d){await setDoc(pr,{email:em,createdAt:serverTimestamp(),lastSeen:serverTimestamp(),blocked:false,note:"",appVersion:"2.5.4"});}
+else if(Date.now()-(d.lastSeen?.toMillis?.()||0)>24*3600*1000)await updateDoc(pr,{lastSeen:serverTimestamp(),email:em,appVersion:"2.5.4"})}catch(e){}
 if(isSuperAdmin){try{const ad=(await getDoc(doc(db,"admins",uid))).exists();$("#adminBtn").hidden=!ad;localStorage.setItem("mw:adm:"+uid,ad?"1":"0")}catch(e){$("#adminBtn").hidden=true}}else{$("#adminBtn").hidden=true;localStorage.removeItem("mw:adm:"+uid)}}
 let msgAt=0;async function loadMsgs(force){if(!force&&Date.now()-msgAt<60000)return;msgAt=Date.now();try{const s=await getDocs(query(collection(db,"messages"),where("uid","==",uid),limit(50))),l=s.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(y.createdAt?.seconds||0)-(x.createdAt?.seconds||0));$("#myMsgs").innerHTML=l.map(m=>`<li><span>${esc(m.text)}<small>${m.createdAt?m.createdAt.toDate().toLocaleString():"sending"}${m.reply?", Admin reply: "+esc(m.reply):", awaiting reply"}</small></span></li>`).join("")||"<li>No messages yet.</li>"}catch(e){$("#myMsgs").innerHTML="<li>Messages are unavailable right now.</li>"}}
 $("#msgSend").onclick=async()=>{const t=$("#msgText").value.trim(),k="mwmsg:"+uid;if(!t)return alert("Write a message first.");if(Date.now()-(+localStorage.getItem(k)||0)<30000)return alert("Please wait a moment before sending another message.");try{await addDoc(collection(db,"messages"),{uid,email:auth.currentUser.email||"",text:t.slice(0,1000),status:"new",createdAt:serverTimestamp()});localStorage.setItem(k,Date.now());$("#msgText").value="";alert("Message sent to the admin.");loadMsgs(true)}catch(e){bad(e)}};
+
+
+// Read-only details opened from the four home dashboard summary cards.
+function openSummaryDetails(kind) {
+  const dialog = $("#summaryDialog");
+  const content = $("#summaryContent");
+  if (!dialog || !content) return;
+
+  const month = monthKey();
+  const money = value => fmt(Math.abs(Number(value) || 0)) + " " + cur;
+  const titles = { asset: "Assets", debt: "Debts", income: "Income this month", spent: "Spent this month" };
+  let total = 0;
+  let rows = "";
+  let description = "";
+
+  if (kind === "asset" || kind === "debt") {
+    const accounts = D.accounts
+      .filter(a => kind === "asset" ? Number(a.balance) > 0 : Number(a.balance) < 0)
+      .sort((a, b) => Math.abs(Number(b.balance) || 0) - Math.abs(Number(a.balance) || 0));
+    total = accounts.reduce((sum, a) => sum + (kind === "asset" ? Number(a.balance) : Math.abs(Number(a.balance))), 0);
+    rows = accounts.map(a => {
+      const institution = D.institutions.find(i => i.id === a.instId);
+      const label = (institution ? institution.name + " / " : "") + (a.name || "Account");
+      return `<li class="summary-detail-row"><span><b>${esc(label)}</b><small>${esc(a.type || "Account")}</small></span><strong>${money(a.balance)}</strong></li>`;
+    }).join("");
+    description = kind === "asset"
+      ? "Accounts with a positive balance."
+      : "Accounts with a negative balance; debt values are displayed as positive amounts.";
+  } else if (kind === "income" || kind === "spent") {
+    const wantedType = kind === "income" ? "income" : "expense";
+    const records = D.records
+      .filter(r => r.type === wantedType && day(r).slice(0, 7) === month)
+      .sort((a, b) => day(b).localeCompare(day(a)));
+    total = records.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    rows = records.map(r => {
+      const account = r.accountId ? nameOf(r.accountId) : "";
+      const note = r.note ? " · " + esc(r.note) : "";
+      const category = r.category || (kind === "income" ? "Income" : "Expense");
+      return `<li class="summary-detail-row"><span><b>${esc(category)}</b><small>${esc(day(r))}${account ? " · " + esc(account) : ""}${note}</small></span><strong class="${kind === "income" ? "income" : "expense"}">${money(r.amount)}</strong></li>`;
+    }).join("");
+    description = `Transactions recorded during ${month}.`;
+  } else {
+    return;
+  }
+
+  $("#summaryTitle").textContent = titles[kind];
+  content.innerHTML = `<div class="summary-total"><small>Total ${kind === "spent" ? "spent" : kind === "income" ? "income" : titles[kind].toLowerCase()}</small><strong>${money(total)}</strong></div><p class="summary-helper">${esc(description)}</p><ul class="summary-detail-list">${rows || '<li class="summary-empty">No details to show yet.</li>'}</ul>`;
+  if (!dialog.open) dialog.showModal();
+}
+
+document.addEventListener("click", event => {
+  const card = event.target.closest("[data-summary]");
+  if (card) openSummaryDetails(card.dataset.summary);
+  if (event.target.closest("[data-summary-close]")) $("#summaryDialog")?.close();
+  const dialog = $("#summaryDialog");
+  if (dialog && event.target === dialog) dialog.close();
+});
