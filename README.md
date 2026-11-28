@@ -1,21 +1,18 @@
 # Money Tracker
 
-**Release candidate:** 2.5.1 Optimized
+**Release candidate:** 2.5.2 Final Optimization
 
 Money Tracker is an English-language personal finance PWA with accounts, income, expenses, transfers, budgets, savings goals, scheduled payments, reports, exports, Smart Financial Insights, cloud backup/restore and an admin dashboard.
 
 **Stack:** HTML, CSS, JavaScript modules, Firebase Authentication, Cloud Firestore, Cloudflare Workers static assets.
 
-## 2.5.1 optimization notes
+## 2.5.2 final optimization notes
 
-- Recent transaction listener starts with the latest 3 months and is capped at 1,000 documents. The user can load older months when needed.
-- Yearly reports expand the loaded date range, subject to the same 1,000-document safety cap. If a report reaches that cap, narrow the period before relying on its totals.
-- Automatic cloud backup checks every 30 days (when the app is opened online); manual cloud backup remains available.
-- Backup JSON is split into 180,000-character chunks and written in batches of 10 chunk documents to stay below Firestore document/request limits, including non-ASCII text.
-- Backup retention keeps the latest 4 completed backups. Pruning deletes known chunk IDs in batches instead of reading every chunk first.\n- Restore writes use bounded batches (maximum 200 documents / approximately 6 MiB per request) to reduce Firestore request-size failures.
-- The user's support-message history is capped at 50 items per fetch.
-- Only `admin.moneytracker@gmail.com` with its matching `admins/{uid}` document is accepted by the app and Firestore admin rules.
-- Admin blocking writes a protected `blockedUsers/{uid}` marker. Rules also honor legacy `profiles/{uid}.blocked` values, and a blocked user cannot delete their own profile to bypass the restriction.
+- Confirmed Super Admin access requires the verified `admin.moneytracker@gmail.com` account and its matching `admins/{uid}` document in both the app and Firestore rules.
+- Confirmed transaction history uses Firestore cursor pagination (up to 1,000 records per page) and can load older pages on demand; reports show a warning when additional records remain unloaded.
+- Advanced the service-worker cache namespace to `mw-v15` so clients fetch this release's app files.
+- Updated the app's profile version marker to `2.5.2`.
+- Corrected literal escaped newline formatting in the historical changelog.
 - Existing user collection names and document IDs are preserved. No bulk migration or deletion is performed.
 
 ## Firebase setup
@@ -44,7 +41,7 @@ Money Tracker is an English-language personal finance PWA with accounts, income,
 
 ## Deploy
 
-Push the source to the connected GitHub branch. Cloudflare Workers should deploy the static assets from `wrangler.jsonc`. Users receive web changes the next time the hosted app is opened; the service-worker cache namespace is advanced to `mw-v13`.
+Push the source to the connected GitHub branch. Cloudflare Workers should deploy the static assets from `wrangler.jsonc`. Users receive web changes the next time the hosted app is opened; the service-worker cache namespace is advanced to `mw-v15`.
 
 ## Android
 

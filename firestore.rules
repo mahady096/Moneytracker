@@ -11,7 +11,8 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/profiles/$(uid)).data.blocked == true);
     }
     match /users/{uid} {
-      allow read, write: if activeUser(uid);
+      allow read: if signedInAs(uid);
+      allow write: if activeUser(uid);
 
 
       match /cloudBackups/{backupId} {
@@ -88,6 +89,7 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null
         && request.auth.token.email == 'admin.moneytracker@gmail.com'
+        && request.auth.token.email_verified == true
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
     match /admins/{id} {
@@ -108,16 +110,16 @@ service cloud.firestore {
     match /profiles/{id} {
       allow get: if request.auth != null && (request.auth.uid == id || isAdmin());
       allow list: if isAdmin();
-      allow create: if request.auth != null && request.auth.uid == id
+      allow create: if activeUser(id)
         && request.resource.data.keys().hasOnly(['email','createdAt','lastSeen','blocked','note','appVersion'])
         && request.resource.data.blocked == false;
-      allow update: if (request.auth != null && request.auth.uid == id
+      allow update: if (activeUser(id)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeen','email','appVersion'])) || isAdmin();
       allow delete: if isAdmin()
-        || (request.auth != null && request.auth.uid == id && resource.data.blocked != true);
+        || (activeUser(id) && resource.data.blocked != true);
     }
     match /messages/{id} {
-      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      allow read: if (activeUser(request.auth.uid) && resource.data.uid == request.auth.uid) || isAdmin();
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1000
@@ -126,7 +128,7 @@ service cloud.firestore {
         && !(exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.blocked == true)
         && request.resource.data.keys().hasOnly(['uid','email','text','status','createdAt']);
       allow update: if isAdmin();
-      allow delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if (activeUser(request.auth.uid) && resource.data.uid == request.auth.uid) || isAdmin();
     }
   }
 }

@@ -8,8 +8,8 @@ $("#go").onclick=()=>signInWithEmailAndPassword(auth,$("#em").value.trim(),$("#p
 $("#gg").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(bad);
 $("#so").onclick=()=>signOut(auth);
 onAuthStateChanged(auth,async u=>{$("#login").hidden=!!u;$("#panel").hidden=true;if(!u){$("#st").textContent="Sign in with an admin account.";return}
-let ok=(u.email||"").toLowerCase()==="admin.moneytracker@gmail.com";if(ok){try{ok=(await getDoc(doc(db,"admins",u.uid))).exists()}catch(e){ok=false}}
-if(!ok){$("#st").textContent="This account is not an admin. Your user ID: "+u.uid;return}
+let ok=u.emailVerified===true&&(u.email||"").toLowerCase()==="admin.moneytracker@gmail.com";if(ok){try{ok=(await getDoc(doc(db,"admins",u.uid))).exists()}catch(e){ok=false}}
+if(!ok){$("#st").textContent="Use the verified admin.moneytracker@gmail.com account. Your user ID: "+u.uid;return}
 $("#st").textContent="";$("#panel").hidden=false;$("#who").textContent=u.email||u.uid;
 try{const c=await getDoc(doc(db,"site","config")),d=c.exists()?c.data():{};$("#nt").value=d.notice||"";$("#non").checked=!!d.noticeOn;slides=d.slides||[]}catch(e){bad(e)}
 rs();inbox()});
@@ -34,7 +34,7 @@ $("#uq").oninput=drawUsers;
 $("#ul").onclick=async e=>{const d=e.target.dataset,u=users.find(x=>x.id===(d.blk||d.nt||d.udel));if(!u)return;try{
 if(d.blk){if(u.id===auth.currentUser.uid)return alert("You cannot block your own account.");if(!u.blocked&&!confirm("Block "+(u.email||u.id)+"?"))return;if(u.blocked){await deleteDoc(doc(db,"blockedUsers",u.id));await updateDoc(doc(db,"profiles",u.id),{blocked:false})}else{await setDoc(doc(db,"blockedUsers",u.id),{blocked:true,updatedAt:serverTimestamp()});await updateDoc(doc(db,"profiles",u.id),{blocked:true})}}
 if(d.nt){const n=prompt("Note about this user (admin only):",u.note||"");if(n===null)return;await updateDoc(doc(db,"profiles",u.id),{note:n.slice(0,200)})}
-if(d.udel&&confirm("Remove this entry? It is recreated when the user opens the app again. Their account and data are not deleted."))await deleteDoc(doc(db,"profiles",u.id));
+if(d.udel&&confirm("Remove this profile entry and clear any block marker? The Firebase Auth account and finance data are not deleted.")){await deleteDoc(doc(db,"blockedUsers",u.id));await deleteDoc(doc(db,"profiles",u.id));}
 loadUsers()}catch(er){bad(er)}};
 
 $("#lu").onclick=loadUsers;

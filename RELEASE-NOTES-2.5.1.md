@@ -1,15 +1,15 @@
 # Money Tracker 2.5.1 Optimized — Release Notes
 
 ## Included optimizations
-- Recent transaction listener starts with a bounded 3-month window and a 1,000-document cap; older history is loaded on demand.
+- Recent transaction listener starts with a bounded 3-month window and fetches up to 1,000 documents per page; older pages/months load on demand with a cursor, and reports warn if more data is available.
 - Main finance collections are user-scoped under the existing `users/{uid}` path. Existing document IDs and data paths are retained.
 - Automatic cloud backup checks at most once every 30 days while the app is opened online; manual backup remains available.
 - Cloud backup payloads are chunked at 180,000 characters and uploaded in small batches of 10 documents.
 - Backup retention keeps four completed backups and removes chunks in bounded delete batches.
 - Support inbox fetches are bounded; admin user list is limited to 100 profiles.
-- Admin authorization checks the configured Super Admin email and the matching `admins/{uid}` document.
+- Admin authorization requires a verified `admin.moneytracker@gmail.com` account and the matching `admins/{uid}` document; Firestore Rules enforce the same condition.
 - Blocking uses a protected `blockedUsers/{uid}` marker; rules also honor legacy `profiles/{uid}.blocked` values, and blocked users cannot delete their own profile to bypass a ban.
-- Service-worker cache namespace is bumped to `mw-v13`.
+- Service-worker cache namespace is bumped to `mw-v14`.
 
 ## Important deployment steps
 1. Export a fresh independent JSON backup for a test account and preserve production backups.
